@@ -1,0 +1,15 @@
+{
+  "name": "sac-innomaker-selfhosted",
+  "version": "1.0.0",
+  "private": true,
+  "description": "SAC Innomaker rodando fora do Google (Node.js), usando o Codigo.gs e o Index.html originais",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "instalar": "node server.js instalar",
+    "senha-admin": "node server.js redefinirSenhaAdmin",
+    "backup": "node server.js backupDiario"
+  },
+  "engines": { "node": ">=18" },
+  "dependencies": { "nodemailer": "^6.9.14" }
+}
