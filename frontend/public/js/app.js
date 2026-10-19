@@ -1329,24 +1329,24 @@ async function telaFila() {
       <input type="search" id="q" placeholder="Buscar por número, projeto ou palavra…" value="${esc(f.busca || '')}" aria-label="Buscar">
       <select id="fs" aria-label="Status"><option value="ativos">Ativos</option><option value="">Todos</option>${S.base.status.map(s => `<option>${esc(s)}</option>`).join('')}</select>
       <select id="fp" aria-label="Prioridade"><option value="">Todas as prioridades</option><option>Bloqueio</option><option>Normal</option></select>
-      ${n1 ? `<select id="fsetor" aria-label="Setor"><option value="">Todos os setores</option>${S.base.setores.map(s => `<option>${esc(s)}</option>`).join('')}</select>` : ''}
+      <select id="fprojeto" aria-label="Projeto"><option value="">Todos os projetos</option>${[...new Set(lista.map(c => c.Projeto).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt-BR')).map(p => `<option>${esc(p)}</option>`).join('')}</select>
     </div>
     <div class="lista" id="lista"></div>`;
   $('#fs').value = f.status === undefined ? 'ativos' : f.status;
   $('#fp').value = f.prioridade || '';
-  if ($('#fsetor')) $('#fsetor').value = f.setor || '';
+  $('#fprojeto').value = f.projeto || '';
   $('#b-atualizar').onclick = telaFila;
   const render = () => {
-    Object.assign(f, { busca: $('#q').value, status: $('#fs').value, prioridade: $('#fp').value, setor: $('#fsetor') ? $('#fsetor').value : '' });
+    Object.assign(f, { busca: $('#q').value, status: $('#fs').value, prioridade: $('#fp').value, projeto: $('#fprojeto').value });
     const q = f.busca.toLowerCase();
     const itens = lista.filter(c =>
       (f.status === 'ativos' ? !FINAIS.includes(c.Status) : (!f.status || c.Status === f.status)) &&
-      (!f.prioridade || c.Prioridade === f.prioridade) && (!f.setor || c.Setor === f.setor) &&
+      (!f.prioridade || c.Prioridade === f.prioridade) && (!f.projeto || c.Projeto === f.projeto) &&
       (!q || (c.Id + ' ' + c.Projeto + ' ' + c.Titulo + ' ' + c.Modulo + ' ' + c.Categoria).toLowerCase().includes(q)));
     $('#lista').innerHTML = itens.length ? itens.map(c => linhaChamado(c, true)).join('') : '<div class="vazio">Nenhum chamado aqui. Fila em dia.</div>';
     $$('#lista .linha-ch').forEach(b => b.onclick = () => telaDetalhe(b.dataset.id));
   };
-  ['#q', '#fs', '#fp', '#fsetor'].forEach(s => { if ($(s)) $(s).oninput = render; });
+  ['#q', '#fs', '#fp', '#fprojeto'].forEach(s => { if ($(s)) $(s).oninput = render; });
   render();
 }
 

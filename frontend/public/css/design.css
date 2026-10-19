@@ -40,8 +40,8 @@ body.sac-interno {
   }
 }
 
-/* ───────── Moldura: topo e menu no mesmo fundo da página, sem bordas ───────── */
-body.sac-interno .topo { background: var(--papel); border-bottom: 0; min-height: var(--altura-topo); padding: 12px 28px; }
+/* ───────── Moldura: topo e menu brancos, com uma linha fina na divisa; o conteúdo fica no fundo cinza ───────── */
+body.sac-interno .topo { background: var(--superficie); border-bottom: 1px solid var(--linha); min-height: var(--altura-topo); padding: 12px 28px; }
 body.sac-interno .marca { gap: 12px; }
 body.sac-interno .marca b { width: 38px; height: 34px; border-radius: 10px 10px 10px 3px; font-size: 15px; }
 body.sac-interno .marca span { font-family: var(--fonte); font-stretch: 100%; font-size: 15px; font-weight: 600; letter-spacing: -.01em; }
@@ -50,15 +50,15 @@ body.sac-interno .quem-id { color: var(--suave); font-size: 13px; }
 body.sac-interno .topo .btn-fantasma { min-height: 34px; padding: 6px 12px; border-radius: 999px; font-size: 13px; color: var(--suave); }
 body.sac-interno .topo .btn-fantasma:hover { background: var(--ativo); color: var(--texto); }
 
-body.sac-interno nav.abas { background: var(--papel); border-right: 0; padding: 12px 12px 24px; gap: 2px; }
+body.sac-interno nav.abas { background: var(--superficie); border-right: 1px solid var(--linha); padding: 20px 12px 24px; gap: 2px; }
 body.sac-interno .nav-grupo { gap: 2px; margin-bottom: 18px; }
 body.sac-interno .nav-grupo-titulo { font-size: 12px; font-weight: 500; color: var(--suave); padding: 0 12px 6px; }
 body.sac-interno nav.abas button { padding: 9px 12px; border-radius: 10px; font-size: 14px; font-weight: 500; color: var(--texto); gap: 10px; }
 body.sac-interno nav.abas button .ico { width: 18px; height: 18px; color: var(--suave); }
-body.sac-interno nav.abas button:hover { background: var(--ativo); color: var(--texto); }
+body.sac-interno nav.abas button:hover { background: var(--elevado); color: var(--texto); }
 body.sac-interno nav.abas button[aria-current="page"] { background: var(--ativo); color: var(--texto); font-weight: 600; box-shadow: none; }
 body.sac-interno nav.abas button[aria-current="page"] .ico { color: var(--texto); }
-body.sac-interno main { padding: 20px 40px 64px; }
+body.sac-interno main { padding: 32px 40px 64px; }
 
 /* ───────── Tipografia: títulos no Archivo da marca, o resto em Public Sans ───────── */
 body.sac-interno h1 { font-size: 28px; line-height: 1.15; letter-spacing: -.02em; font-weight: 700; }
@@ -232,7 +232,7 @@ body.sac-interno .editor-modal { border-color: var(--linha); box-shadow: 0 24px 
 /* ───────── Telas menores ───────── */
 @media (max-width: 1180px) { body.sac-interno main { padding: 20px 24px 48px; } }
 @media (max-width: 880px) {
-  body.sac-interno nav.abas { background: var(--papel); border-bottom: 1px solid var(--linha); padding: 8px 12px; }
+  body.sac-interno nav.abas { background: var(--superficie); border-right: 0; border-bottom: 1px solid var(--linha); padding: 8px 12px; }
   body.sac-interno nav.abas button { padding: 8px 12px; font-size: 13px; }
   body.sac-interno .topo { padding: 10px 16px; }
 }
