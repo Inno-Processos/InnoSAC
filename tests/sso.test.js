@@ -80,7 +80,7 @@ async function main() {
     aut.sessoes.set('sessao-ana', { usuario: 'Ana', nome: 'Ana Souza', email: 'Ana@Innomaker.com.br', grupos: ['sac_n1', 'outros'] });
     assert.match(await pagina('sessao-ana'), /js\/app\.js/);
     const consulta = aut.consultas.at(-1);
-    assert.equal(consulta['x-original-url'], web + '/');
+    assert.equal(consulta['x-original-url'], web + '/_sac/verificar');
     assert.equal(consulta['x-original-method'], 'GET');
     assert.equal(consulta.cookie, 'authelia_session=sessao-ana', 'Only the Authelia cookie is forwarded.');
     let eu = (await post('sessao-ana', 'iniciar', 'token-qualquer')).corpo.resultado.usuario;

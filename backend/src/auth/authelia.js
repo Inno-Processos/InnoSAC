@@ -12,7 +12,9 @@ function lerCookie(req, nome) {
   return m ? m[1] : '';
 }
 
-function criarAuthelia({ url, cookie, urlPublica, entrarExterno, sair }) {
+// urlVerificacao: endereço sobre o qual o SAC pergunta ao Authelia. Fica num caminho próprio
+// (/_sac/verificar) para o Authelia poder liberar o resto do domínio (bypass) e ainda conferir o login aqui.
+function criarAuthelia({ url, cookie, urlPublica, urlVerificacao, entrarExterno, sair }) {
   const verificados = new Map(); // sha256(cookie) -> { identidade, expira }
   const sessoes = new Map();     // sha256(cookie) -> { token, erro, expira }
 
@@ -28,7 +30,7 @@ function criarAuthelia({ url, cookie, urlPublica, entrarExterno, sair }) {
     const ip = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.socket.remoteAddress || '';
     const r = await fetch(url + '/api/authz/auth-request', {
       redirect: 'manual',
-      headers: { 'X-Original-URL': urlPublica + '/', 'X-Original-Method': 'GET', 'X-Forwarded-For': ip, Cookie: `${cookie}=${valor}` }
+      headers: { 'X-Original-URL': urlVerificacao, 'X-Original-Method': 'GET', 'X-Forwarded-For': ip, Cookie: `${cookie}=${valor}` }
     });
     if (r.status === 401) return { chave, estado: 'anonimo' };
     if (r.status === 403) return { chave, estado: 'sem-acesso', erro: 'As regras do Authelia não liberam o SAC para a sua conta Innomaker.' };

@@ -101,16 +101,23 @@ navegador ──(cookie authelia_session)──> frontend ──> backend ──
   mudanças de grupo valem em até 15 minutos. **Sair** no SAC também sai da conta Innomaker.
 - Os links da pesquisa de satisfação e dos manuais continuam abrindo sem login.
 
-**1. Regra no Authelia.** O `access_control` do `configuration.yml` precisa cobrir o domínio do SAC
-(o portal pergunta ao Authelia sobre `https://sac.innomaker.com.br/`):
+**1. Regras no Authelia.** No `access_control` do `configuration.yml`, **antes** de qualquer regra mais geral
+(como `*.innomaker.com.br`), porque o Authelia usa a primeira regra que combina:
 
 ```yaml
 access_control:
   rules:
+    # O SAC pergunta ao Authelia sobre este caminho para saber quem está logado
     - domain: 'sac.innomaker.com.br'
+      resources: ['^/_sac/verificar$']
       policy: 'one_factor'      # ou 'two_factor' para exigir 2FA
+    # O resto do domínio passa direto pelo Traefik: o próprio SAC mostra a landing page ou o portal
+    - domain: 'sac.innomaker.com.br'
+      policy: 'bypass'
 ```
 
+O `bypass` é necessário quando o forward auth do Authelia está ligado para todo o entrypoint do Traefik;
+sem ele, o Traefik manda direto para a tela de login do Authelia e a landing page nunca aparece.
 Não é preciso cadastrar cliente OIDC nem gerar segredo.
 
 **2. Grupos no LLDAP.** Quem não estiver em nenhum grupo `sac_` não entra.
@@ -131,11 +138,17 @@ Quem sai dos grupos de equipe fica desativado no SAC.
 **3. `backend/.env`:** `AUTH_MODE=authelia`, `AUTHELIA_URL=https://auth.innomaker.com.br` e
 `PUBLIC_URL=https://sac.innomaker.com.br`. Se o cookie do Authelia tiver outro nome, ajuste `AUTHELIA_COOKIE`.
 
-**4. Publique** `sac.innomaker.com.br` no seu proxy (Nginx, Caddy, Traefik...) apontando para a porta 3000 (frontend),
-repassando o cabeçalho `X-Forwarded-For`. Não use o *forward auth* do Authelia nesse domínio: o próprio SAC
-consulta o Authelia e mostra a landing page em vez de redirecionar direto para o login.
+**4. Publique.** O `docker-compose.yml` sobe o `backend` (só na rede interna) e o `frontend` (container `sac`,
+na rede `proxy` do Traefik, em `sac.innomaker.com.br`, porta 3000). Não coloque middleware do Authelia no roteador do SAC.
 O SAC precisa estar num subdomínio de `innomaker.com.br`; em `localhost` o navegador não envia o cookie do Authelia
 (para testar no computador, use `AUTH_MODE=senha`).
+
+```bash
+cp .env backend/.env          # se a configuração ainda estiver na raiz
+docker compose down
+docker compose up -d --build
+docker compose logs -f        # deve mostrar "login: Authelia https://auth.innomaker.com.br"
+```
 
 ## Projetos
 Crie uma pasta por projeto em `data/drive/Projetos/` e clique em **Projetos > Buscar pastas novas**

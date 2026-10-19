@@ -20,7 +20,8 @@ if (!['senha', 'authelia'].includes(AUTH_MODO)) throw new Error('AUTH_MODE deve 
 const AUTHELIA = AUTH_MODO === 'authelia' ? {
   url: String(process.env.AUTHELIA_URL || 'https://auth.innomaker.com.br').replace(/\/$/, ''),
   cookie: process.env.AUTHELIA_COOKIE || 'authelia_session',
-  urlPublica: URL_PUBLICA
+  urlPublica: URL_PUBLICA,
+  urlVerificacao: process.env.AUTHELIA_CHECK_URL || URL_PUBLICA + '/_sac/verificar'
 } : null;
 
 module.exports = {
