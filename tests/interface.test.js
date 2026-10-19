@@ -43,7 +43,7 @@ async function main() {
       if (fn === 'listarEquipe') return [{ Nome: 'Ana', Email: 'ana@example.com', Login: 'ana', Perfil: 'N1', Ativo: true }];
       if (fn === 'configuracoes') return config;
       if (fn === 'gruposProjetoLldap') return [{ grupo: 'Projeto_Livre', projeto: '' }, { grupo: 'Projeto_Usado', projeto: 'Outro' }];
-      if (fn === 'listarClientesLldap') return [{ Nome: 'Maria', Login: 'maria', Email: 'maria@cliente.com', Ativo: true, projetos: ['4.2.01 - Teste'] }];
+      if (fn === 'listarClientesLldap') return [{ Nome: 'Maria', Login: 'maria', Email: 'maria@cliente.com', Ativo: true, projetoIds: ['PRJ-1'], projetos: ['4.2.01 - Teste'] }];
       if (fn === 'salvarProjeto') throw new Error('Falha simulada ao salvar');
       return true;
     }
@@ -161,6 +161,11 @@ async function main() {
   assert($('#pj-grupo'), 'The project form asks for the LLDAP group.');
   assert.deepEqual([...document.querySelectorAll('#pj-grupos option')].map(o => o.getAttribute('value')), ['Projeto_Livre'], 'Only unlinked groups are suggested.');
   run('fecharEditor()');
+  assert.doesNotMatch($('#app table').innerHTML, /Responsável|E-mail/, 'No contact columns in LLDAP mode.');
+  $('[data-ver-clientes]').onclick();
+  assert.match($('#editor-titulo').textContent, /Clientes de 4.2.01 - Teste/);
+  assert.match($('dialog').innerHTML, /maria@cliente.com/);
+  run('fecharEditor()');
   await run('telaEquipeAdmin()');
   assert.equal($('#b-nova-pessoa'), null);
   assert.equal($('#b-adicionar-perfil'), null, 'Profiles come from LLDAP groups.');
@@ -176,6 +181,16 @@ async function main() {
   assert.deepEqual([...document.querySelectorAll('#n-cliente option')].map(o => o.getAttribute('value')), ['', 'PRJ-A', 'PRJ-B']);
   $('#n-cliente option[value="PRJ-A"]').setAttribute('selected', ''); $('#n-cliente').onchange();
   assert.equal($('#campo-modulo').hidden, false, 'Modules follow the chosen project.');
+  // Attachments: choosing again adds to the list; each file can be removed before sending
+  const escolher = arquivos => { Object.defineProperty($('#n-arquivos'), 'files', { value: arquivos, configurable: true, writable: true }); $('#n-arquivos').onchange(); };
+  const arq = (name, size) => ({ name, size, lastModified: 1 });
+  escolher([arq('print.png', 2048), arq('nota.xml', 4096)]);
+  escolher([arq('planilha.xlsx', 8192), arq('print.png', 2048)]);
+  assert.deepEqual(Array.from(run("arquivosDe('n-arquivos').map(f => f.name)")), ['print.png', 'nota.xml', 'planilha.xlsx']);
+  assert.equal(document.querySelectorAll('#n-arquivos-lista [data-arquivo-ver]').length, 3);
+  $('#n-arquivos-lista [data-arquivo-tirar="1"]').onclick();
+  assert.deepEqual(Array.from(run("arquivosDe('n-arquivos').map(f => f.name)")), ['print.png', 'planilha.xlsx']);
+  assert.doesNotMatch($('#n-arquivos-lista').innerHTML, /nota.xml/);
   const meus = [{ Id: 'CH-A', ProjetoId: 'PRJ-A', Projeto: 'A', Titulo: 'Tem A', Status: 'Aberto', Categoria: 'Dúvida' }, { Id: 'CH-B', ProjetoId: 'PRJ-B', Projeto: 'B', Titulo: 'Tem B', Status: 'Aberto', Categoria: 'Dúvida' }];
   ctx.mockApi = async fn => fn === 'meusChamados' ? meus : true;
   await run('api = mockApi; telaCliente()');
@@ -183,6 +198,61 @@ async function main() {
   $('#f-projeto option[value="PRJ-B"]').setAttribute('selected', ''); $('#f-projeto').oninput();
   assert.match($('#lista').innerHTML, /Tem B/);
   assert.doesNotMatch($('#lista').innerHTML, /Tem A/);
+
+  // Client side menu: Meus chamados, Abrir chamado, Como funciona
+  assert.deepEqual([...document.querySelectorAll('#abas [data-aba]')].map(b => b.dataset.aba), ['cliente', 'novo', 'como']);
+  assert.equal($('#abas [data-aba=cliente]').getAttribute('aria-current'), 'page');
+  run('telaComoFunciona()');
+  assert.match($('#app').innerHTML, /Aguardando cliente/);
+  assert.equal($('#abas [data-aba=como]').getAttribute('aria-current'), 'page');
+
+  // Closing a ticket: the client confirms, with an optional reason
+  const chamadas = [];
+  ctx.mockApi = async (fn, ...args) => { chamadas.push([fn, ...args]); return true; };
+  run(`api = mockApi; app.innerHTML = '<div id="painel"></div>'; painelCliente({ Id: 'CH-1', Status: 'Em atendimento' }, {}, { fechar: true }, () => {});`);
+  assert.equal($('#fechar-form').hidden, true);
+  $('#b-fechar').onclick();
+  assert.equal($('#fechar-form').hidden, false);
+  $('#t-fechar').value = 'Resolvi';
+  await $('#b-confirmar-fechar').onclick({ target: $('#b-confirmar-fechar') });
+  assert.deepEqual(chamadas.at(-1).slice(0, 1).concat(chamadas.at(-1).slice(2)), ['fecharChamado', 'CH-1', 'Resolvi']);
+
+  // Chat: reactions under the message, emoji picker, quoted reply and "Respondendo a..." bar
+  run(`app.innerHTML = '<div id="chat"></div>'; montarChat({ Id: 'CH-1', Abertura: '2026-10-19T12:00:00Z', Descricao: 'Abertura', Status: 'Em atendimento' }, {
+    acoes: { responder: true, anexar: true }, chat: { canais: ['cliente'], ver: '1', ladoOnline: {}, podeEscreverCliente: true },
+    historico: [
+      { Id: 'm1', Tipo: 'MENSAGEM', Texto: 'Qual nota?', Autor: 'Ana', Perfil: 'N1', DataHora: '2026-10-19T12:01:00Z', reacoes: [{ emoji: '👍', total: 2, meu: true, nomes: ['Ana', 'Maria'] }] },
+      { Id: 'm2', Tipo: 'MENSAGEM', Texto: 'A 123', Autor: 'Maria', Perfil: 'Cliente', meu: true, RespostaA: 'm1', DataHora: '2026-10-19T12:02:00Z', reacoes: [] },
+      { Id: 's1', Tipo: 'STATUS', Texto: 'Aberto → Em atendimento', DataHora: '2026-10-19T12:03:00Z' }] });`);
+  assert.match($('[data-msg=m1] .reacao.minha').textContent, /👍\s*2/);
+  assert.match($('[data-msg=m2] .citacao').textContent, /Ana, atendimento[\s\S]*Qual nota\?/);
+  assert.equal(document.querySelectorAll('[data-abrir-reacoes]').length, 2, 'Status events have no reactions.');
+  $('[data-abrir-reacoes=m1]').onclick();
+  assert.equal(document.querySelectorAll('.seletor-reacao button').length, 6);
+  await $('.seletor-reacao button[data-emoji="❤️"]').onclick();
+  assert.deepEqual(chamadas.at(-1).slice(2), ['CH-1', 'm1', '❤️']);
+  $('[data-responder=m1]').onclick();
+  assert.match($('.respondendo').textContent, /Respondendo a Ana, atendimento/);
+  $('#chat-txt').value = 'É a 123';
+  await run('enviarMensagemChat()');
+  assert.deepEqual(chamadas.at(-1).slice(2), ['CH-1', 'cliente', 'É a 123', 'm1']);
+  assert.equal($('.respondendo'), null, 'The reply bar closes after sending.');
+  run('pararChat()');
+
+  // Settings > business hours and automatic replies: simulator follows the decision table
+  ctx.cfgAuto = { geral: [['DIAS_FUNCIONAMENTO', '1,2,3,4,5'], ['HORA_INICIO', '9'], ['HORA_FIM', '16'], ['NOTIFICAR_EQUIPE', 'SIM'], ['MENSAGEM_AUTOMATICA', 'SIM'], ['LIMITE_ALTO_VOLUME', '10'],
+    ['MSG_M01', '{saudacao}! Fora'], ['MSG_M02', '{saudacao}! Normal'], ['MSG_M03', '{saudacao}! Volume'], ['NOME_SISTEMA', 'Innomaker']].map(([chave, valor]) => ({ chave, valor, descricao: '', tipo: 'texto' })),
+    automatico: { dentro: true, ativos: 4, codigo: 'M02', situacao: 'Atendimento normal', saudacao: 'Boa tarde', avisosNaFila: 2 } };
+  run('app.innerHTML = "<div id=cfg></div>"; cfgAutomaticas(cfgAuto);');
+  assert.match($('.auto-agora').textContent, /dentro do horário[\s\S]*M02[\s\S]*2 avisos/);
+  assert.deepEqual([...document.querySelectorAll('[data-dia]')].filter(c => c.hasAttribute('checked')).map(c => c.dataset.dia), ['1', '2', '3', '4', '5']);
+  assert.match($('.tabela-decisao tr.atual').textContent, /Sim[\s\S]*Não[\s\S]*M02/);
+  assert.equal($('#sim-previa').textContent, 'Boa tarde! Normal');
+  $('#sim-ativos').value = '15'; $('#sim-ativos').oninput();
+  assert.equal($('#sim-codigo').textContent, 'M03');
+  $('input[name=sim-dentro][value="1"]').removeAttribute('checked'); $('input[name=sim-dentro][value="0"]').setAttribute('checked', ''); $('#sim-ativos').oninput();
+  assert.equal($('#sim-codigo').textContent, 'M01', 'Outside business hours wins.');
+  assert.equal($('#sim-previa').textContent, 'Boa tarde! Fora');
   run("S.auth = null;");
   console.log('OK: navegação, edição/criação em modal, lista oculta, cancelamento, erro de gravação e confirmações de exclusão.');
 }

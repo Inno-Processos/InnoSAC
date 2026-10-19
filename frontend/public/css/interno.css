@@ -108,8 +108,8 @@ body.sac-interno nav.abas button[aria-current="page"] {
   box-shadow: inset 3px 0 var(--marca);
 }
 body.sac-interno main { max-width: 1280px; padding: 32px 36px 64px; min-width: 0; }
-body.sac-interno.sac-equipe main { max-width: 1640px; margin-left: var(--lateral); margin-right: auto; }
-body.sac-interno.sac-equipe .rodape { margin-left: var(--lateral); }
+body.sac-interno.sac-lateral main { max-width: 1640px; margin-left: var(--lateral); margin-right: auto; }
+body.sac-interno.sac-lateral .rodape { margin-left: var(--lateral); }
 body.sac-interno h1 { font-size: clamp(26px, 2.4vw, 34px); letter-spacing: -.035em; font-weight: 750; }
 body.sac-interno h2 { font-size: 21px; letter-spacing: -.02em; }
 body.sac-interno h3 { font-size: 16px; line-height: 1.35; }
@@ -191,7 +191,7 @@ body.sac-interno :focus-visible { outline: 2px solid var(--acento); outline-offs
 @media (prefers-reduced-motion: no-preference) {
   body.sac-interno .btn, body.sac-interno nav.abas button { transition: background-color 140ms ease, border-color 140ms ease; }
 }
-@media (min-width: 1640px) { body.sac-interno.sac-equipe main { margin-left: max(var(--lateral), calc((100vw - 1416px) / 2)); } }
+@media (min-width: 1640px) { body.sac-interno.sac-lateral main { margin-left: max(var(--lateral), calc((100vw - 1416px) / 2)); } }
 @media (max-width: 1180px) {
   body.sac-interno { --lateral: 196px; }
   body.sac-interno main { padding: 28px 24px 48px; }
@@ -210,7 +210,7 @@ body.sac-interno :focus-visible { outline: 2px solid var(--acento); outline-offs
   body.sac-interno nav.abas button { padding: 10px 12px; font-size: 12px; white-space: nowrap; }
   body.sac-interno nav.abas button[aria-current="page"] { box-shadow: none; }
   body.sac-interno .topo { position: relative; }
-  body.sac-interno.sac-equipe main, body.sac-interno.sac-equipe .rodape { margin-left: 0; }
+  body.sac-interno.sac-lateral main, body.sac-interno.sac-lateral .rodape { margin-left: 0; }
   body.sac-interno .contadores { grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; }
 }
 @media (max-width: 540px) {
@@ -254,7 +254,7 @@ body.sac-interno :focus-visible { outline: 2px solid var(--acento); outline-offs
 @media print {
   body.sac-interno .topo, body.sac-interno nav.abas { display: none !important; }
   body.sac-interno, body.sac-interno .pagina { background: white; color: black; }
-  body.sac-interno.sac-equipe main { margin: 0; padding: 0; max-width: none; }
+  body.sac-interno.sac-lateral main { margin: 0; padding: 0; max-width: none; }
   body.sac-interno .pagina { border: 0; padding: 0; box-shadow: none; }
 }
 
@@ -304,3 +304,67 @@ body.sac-interno .btn-ico .ico { width: 18px; height: 18px; }
   body.sac-interno .btn-ico + .btn-ico { margin-left: 10px; }
 }
 body.sac-interno .bloco.rolagem > h2 + table { margin-top: 12px; }
+
+/* Anexos escolhidos no formulário: nome + ver/retirar */
+body.sac-interno .lista-arquivos { list-style: none; padding: 0; margin: 10px 0 0; display: grid; gap: 8px; }
+body.sac-interno .lista-arquivos li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 8px 8px 14px; border: 1px solid var(--linha); border-radius: 10px; background: var(--superficie); color: var(--texto); }
+body.sac-interno .lista-arquivos .arquivo-nome { min-width: 0; overflow-wrap: anywhere; font-size: 13px; }
+body.sac-interno .lista-arquivos .arquivo-acoes { flex: none; }
+body.sac-interno .lista-arquivos .btn-ico { width: 38px; height: 32px; }
+body.sac-interno .lista-arquivos .btn-ico + .btn-ico { margin-left: 8px; }
+
+/* Chat: reações (como no WhatsApp) e respostas a uma mensagem */
+body.sac-interno .bolha { position: relative; }
+body.sac-interno .msg-acoes { position: absolute; top: -14px; right: 10px; display: flex; gap: 4px; opacity: 0; transition: opacity .15s; z-index: 2; }
+body.sac-interno .bolha.meu .msg-acoes { right: auto; left: 10px; }
+body.sac-interno .bolha:hover .msg-acoes, body.sac-interno .bolha:focus-within .msg-acoes { opacity: 1; }
+@media (hover: none) { body.sac-interno .msg-acoes { opacity: 1; } }
+body.sac-interno .msg-acao { width: 28px; height: 28px; display: inline-grid; place-items: center; padding: 0; border-radius: 50%; border: 1px solid var(--linha); background: var(--superficie); color: var(--texto); font-size: 14px; line-height: 1; cursor: pointer; box-shadow: 0 1px 3px #0000001f; }
+body.sac-interno .msg-acao:hover { background: var(--acento-claro); color: var(--acento); }
+body.sac-interno .seletor-reacao { position: absolute; top: -50px; right: 0; display: flex; gap: 2px; padding: 5px 8px; border-radius: 999px; background: var(--superficie); border: 1px solid var(--linha); box-shadow: 0 4px 16px #00000026; z-index: 3; }
+body.sac-interno .bolha.meu .seletor-reacao { right: auto; left: 0; }
+body.sac-interno .seletor-reacao button { border: 0; background: none; font-size: 22px; line-height: 1; padding: 3px 4px; cursor: pointer; border-radius: 8px; transition: transform .1s; }
+body.sac-interno .seletor-reacao button:hover { transform: scale(1.25); background: var(--papel); }
+body.sac-interno .reacoes { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0 -2px; }
+body.sac-interno .reacao { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--linha); background: var(--superficie); color: var(--texto); font-size: 13px; cursor: pointer; }
+body.sac-interno .reacao span { font-size: 11px; font-weight: 700; color: var(--suave); }
+body.sac-interno .reacao.minha { border-color: var(--acento); background: var(--acento-claro); }
+body.sac-interno .citacao { display: flex; flex-direction: column; gap: 1px; width: 100%; text-align: left; margin: 2px 0 6px; padding: 6px 10px; border: 0; border-left: 3px solid var(--marca); border-radius: 6px; background: #0000000f; color: inherit; font: inherit; font-size: 12px; cursor: pointer; }
+body.sac-interno .bolha.meu .citacao { background: #ffffff26; border-left-color: currentColor; }
+body.sac-interno .citacao b { font-size: 11px; }
+body.sac-interno .citacao span { opacity: .85; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+body.sac-interno .bolha.destaque { box-shadow: 0 0 0 3px var(--marca); transition: box-shadow .3s; }
+body.sac-interno .respondendo { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 14px; border-top: 1px solid var(--linha); background: var(--papel); }
+body.sac-interno .respondendo > div { display: flex; flex-direction: column; min-width: 0; border-left: 3px solid var(--marca); padding-left: 10px; font-size: 12px; }
+body.sac-interno .respondendo span { color: var(--suave); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Cliente: quadro "Fechar chamado" no detalhe */
+body.sac-interno .painel-fechar { background: var(--superficie); }
+body.sac-interno .painel-fechar-linha { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+body.sac-interno .painel-fechar-linha p { flex: 1 1 280px; }
+
+/* Configurações > Horário e mensagens automáticas */
+body.sac-interno #f-auto .bloco { margin-bottom: 18px; }
+body.sac-interno #f-auto .bloco h2 { margin-bottom: 14px; }
+body.sac-interno .auto-agora { margin: 0 0 18px; padding: 14px 18px; border-radius: 12px; background: var(--acento-claro); color: var(--texto); font-size: 14px; line-height: 1.6; }
+body.sac-interno .auto-agora > span:first-child { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--acento); margin-right: 6px; }
+body.sac-interno .chip-codigo { display: inline-block; padding: 2px 8px; border-radius: 6px; background: var(--tinta); color: var(--superficie); font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: .02em; }
+body.sac-interno .rotulo { display: block; font-weight: 600; margin-bottom: 8px; }
+body.sac-interno .dias-semana { display: flex; flex-wrap: wrap; gap: 8px; }
+body.sac-interno .dias-semana .dia { position: relative; cursor: pointer; }
+body.sac-interno .dias-semana .dia input { position: absolute; opacity: 0; inset: 0; cursor: pointer; }
+body.sac-interno .dias-semana .dia span { display: inline-grid; place-items: center; min-width: 56px; height: 40px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--linha); background: var(--superficie); color: var(--suave); font-weight: 600; }
+body.sac-interno .dias-semana .dia input:checked + span { background: var(--acento); border-color: var(--acento); color: #fff; }
+body.sac-interno .dias-semana .dia input:focus-visible + span { outline: 3px solid var(--acento); outline-offset: 2px; }
+body.sac-interno .tabela-decisao { min-width: 560px; }
+body.sac-interno .tabela-decisao tr.atual td { background: var(--acento-claro); font-weight: 600; }
+body.sac-interno #f-auto textarea { font-size: 13px; line-height: 1.55; }
+body.sac-interno .sim-controles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; align-items: start; margin-bottom: 16px; }
+body.sac-interno .sim-controles fieldset { border: 1px solid var(--linha); border-radius: 10px; padding: 10px 14px 12px; margin: 0; display: flex; flex-wrap: wrap; gap: 6px 16px; }
+body.sac-interno .sim-controles legend { font-weight: 600; padding: 0 4px; }
+body.sac-interno .sim-controles input[type=range] { width: 100%; accent-color: var(--acento); }
+body.sac-interno .sim-resultado { border: 1px solid var(--linha); border-radius: 12px; padding: 16px 18px; background: var(--papel); }
+body.sac-interno .sim-cabeca { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; font-weight: 600; }
+body.sac-interno .sim-cabeca > span:first-child { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--suave); }
+body.sac-interno .sim-previa { white-space: pre-wrap; background: var(--superficie); border: 1px solid var(--linha); border-left: 4px solid var(--marca); border-radius: 8px; padding: 14px 16px; margin-bottom: 12px; font-size: 14px; line-height: 1.55; }
+@media (max-width: 760px) { body.sac-interno .sim-controles { grid-template-columns: 1fr; } }
+body.sac-interno #f-auto input[type=number] { width: 100%; }

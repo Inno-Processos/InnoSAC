@@ -43,13 +43,14 @@ function restaurarTela() {
   if (S.usuario.tipo === 'cliente') {
     if (rota.tela === 'cadastro' && !S.usuario.contaLldap) { telaMeuCadastro(); return true; }
     if (rota.tela === 'novo') { telaNovoChamado(false); return true; }
+    if (rota.tela === 'como') { telaComoFunciona(); return true; }
     return false;
   }
   const permitidas = ['fila', 'ajuda'];
   if (S.usuario.n1) permitidas.push('telefone', 'relatorios');
   if (S.usuario.admin) permitidas.push('projetos', 'equipe', 'config');
   if (!permitidas.includes(rota.tela)) return false;
-  const sub = ['situacao', 'geral', 'categorias', 'perfis', 'modulos', 'manuais', 'feriados'].includes(rota.valor) ? rota.valor : undefined;
+  const sub = ['situacao', 'geral', 'automaticas', 'categorias', 'perfis', 'modulos', 'manuais', 'feriados'].includes(rota.valor) ? rota.valor : undefined;
   telaEquipe(rota.tela, sub);
   return true;
 }
@@ -139,11 +140,37 @@ function campoArquivos(id) {
     <div class="ajuda">Print, XML da nota, planilha… quantos arquivos precisar.</div>
     <ul class="lista-arquivos" id="${id}-lista"></ul></div>`;
 }
+// Anexos escolhidos antes de enviar: cada arquivo pode ser visto (abre numa nova aba) ou retirado.
+// Escolher mais arquivos soma à lista em vez de substituí-la.
 function ligarArquivos(id) {
   const inp = $('#' + id);
   if (!inp) return;
-  inp.onchange = () => { $('#' + id + '-lista').innerHTML = Array.from(inp.files).map(f => `<li>${esc(f.name)} (${tamanho(f.size)})</li>`).join(''); };
+  inp._arquivos = [];
+  const lista = $('#' + id + '-lista');
+  const chave = f => f.name + '|' + f.size + '|' + f.lastModified;
+  const sincronizar = () => {
+    // Mantém o campo nativo igual à lista (o navegador mostra a contagem certa)
+    try { const dt = new DataTransfer(); inp._arquivos.forEach(f => dt.items.add(f)); inp.files = dt.files; } catch (e) { }
+    lista.innerHTML = inp._arquivos.map((f, i) => `<li><span class="arquivo-nome">${esc(f.name)} <span class="suave">(${tamanho(f.size)})</span></span>
+      <span class="arquivo-acoes">${botaoIcone('ver', 'Ver ' + f.name, `data-arquivo-ver="${i}"`)}${botaoIcone('excluir', 'Retirar ' + f.name, `data-arquivo-tirar="${i}"`)}</span></li>`).join('');
+    $$('[data-arquivo-ver]', lista).forEach(b => b.onclick = () => {
+      const url = URL.createObjectURL(inp._arquivos[Number(b.dataset.arquivoVer)]);
+      window.open(url, '_blank', 'noopener');
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    });
+    $$('[data-arquivo-tirar]', lista).forEach(b => b.onclick = () => {
+      inp._arquivos.splice(Number(b.dataset.arquivoTirar), 1);
+      sincronizar();
+    });
+  };
+  inp.onchange = () => {
+    const novos = Array.from(inp.files).filter(f => !inp._arquivos.some(a => chave(a) === chave(f)));
+    inp._arquivos = inp._arquivos.concat(novos);
+    sincronizar();
+  };
 }
+// Arquivos que vão ser enviados (a lista acima, ou o campo nativo se ela não existir)
+const arquivosDe = id => { const inp = $('#' + id); return inp ? (inp._arquivos || Array.from(inp.files || [])) : []; };
 
 // Trava cada botão por um instante depois do clique: impede o duplo clique.
 // Botões de ação ficam desabilitados até o servidor responder (função acao).
@@ -231,6 +258,8 @@ function iconeInterface(nome) {
     novo: '<path d="M12 5v14M5 12h14"/>',
     editar: '<path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16v4Z"/><path d="m13.5 6.5 4 4"/>',
     excluir: '<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>',
+    ver: '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>',
+    relogio: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
     modulos: '<rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/>'
   };
   return `<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${desenhos[nome] || desenhos.fila}</svg>`;
@@ -251,6 +280,7 @@ function topo() {
   document.body.classList.remove('modo-login');
   document.body.classList.toggle('sac-interno', !!S.usuario);
   document.body.classList.toggle('sac-equipe', !!S.usuario && S.usuario.tipo === 'equipe');
+  document.body.classList.toggle('sac-lateral', !!S.usuario); // equipe e clientes têm menu lateral
   const quem = $('#quem');
   const abas = $('#abas');
   $('#nome-projeto').hidden = !S.usuario;
@@ -287,7 +317,18 @@ function topo() {
     abas.innerHTML = grupos.filter(([, links]) => links.length).map(([nome, links]) => `<div class="nav-grupo" role="group" aria-label="${nome}"><span class="nav-grupo-titulo">${nome}</span>${links.map(([k, t]) => `<button data-aba="${k}">${iconeInterface(k)}<span>${t}</span></button>`).join('')}</div>`).join('');
     abas.hidden = false;
     $$('button', abas).forEach(b => b.onclick = () => telaEquipe(b.dataset.aba));
-  } else abas.hidden = true;
+  } else {
+    // Cliente: Meus chamados, Abrir chamado e Como funciona
+    abas.setAttribute('aria-label', 'Navegação principal');
+    abas.innerHTML = `<div class="nav-grupo" role="group" aria-label="Atendimento"><span class="nav-grupo-titulo">Atendimento</span>
+        <button data-aba="cliente">${iconeInterface('fila')}<span>Meus chamados</span></button>
+        <button data-aba="novo">${iconeInterface('novo')}<span>Abrir chamado</span></button></div>
+      <div class="nav-grupo" role="group" aria-label="Ajuda"><span class="nav-grupo-titulo">Ajuda</span>
+        <button data-aba="como">${iconeInterface('ajuda')}<span>Como funciona</span></button></div>`;
+    abas.hidden = false;
+    const telas = { cliente: () => telaCliente(), novo: () => telaNovoChamado(false), como: () => telaComoFunciona() };
+    $$('button', abas).forEach(b => b.onclick = () => telas[b.dataset.aba]());
+  }
 }
 function marcarAba(k) { $$('#abas button').forEach(b => b.setAttribute('aria-current', b.dataset.aba === k ? 'page' : 'false')); }
 
@@ -557,6 +598,7 @@ async function telaMeuCadastro(primeiraVez) {
 async function telaCliente() {
   lembrarTela('cliente');
   topo();
+  marcarAba('cliente');
   const nav = novaTela();
   app.innerHTML = '<div class="carregando">Carregando seus chamados…</div>';
   let lista;
@@ -581,20 +623,6 @@ async function telaCliente() {
       <button class="btn-link" id="b-completar">Completar meu cadastro</button></div>` : ''}
     ${pend.length ? `<div class="painel-acao"><b>Conte como foi o atendimento.</b> ${pend.length === 1 ? 'Um chamado fechado espera' : pend.length + ' chamados fechados esperam'} sua avaliação:
       ${pend.map(c => `<button class="btn-link" data-abrir="${esc(c.Id)}">${esc(c.Id)}</button>`).join(', ')}</div>` : ''}
-    <details class="faixa-manuais" style="background:var(--superficie);border:1px solid var(--linha)"><summary>Como funciona o atendimento</summary>
-      <div class="rolagem" style="margin-top:10px"><table><thead><tr><th>Status</th><th>O que significa</th><th>O que você faz</th></tr></thead><tbody>
-      ${[['Aberto', 'Chamado registrado, na fila por ordem de chegada', 'Aguarda; pode complementar pelo chat'],
-         ['Em triagem', 'O atendimento confere categoria, módulo e se o sistema está bloqueado', 'Aguarda'],
-         ['Em atendimento', 'O atendimento está trabalhando na solução', 'Acompanha e responde pelo chat'],
-         ['Aguardando cliente', 'Falta uma informação ou um teste seu', `Responde em até ${S.base.diasAutoFechamento} dias úteis; sem resposta, o chamado fecha`],
-         ['Encaminhado ao setor', 'Um setor especializado está cuidando do seu caso', 'Aguarda; o atendimento continua sendo seu contato'],
-         ['Resolvido', 'A correção ou a resposta foi enviada', `Confirma a correção ou pede reajuste em até ${S.base.diasAutoFechamento} dias úteis`],
-         ['Fechado', 'Chamado encerrado', `Responde a pesquisa; pode reabrir em até ${S.base.diasReabertura} dias úteis`],
-         ['Cancelado', 'Duplicado, aberto por engano ou fora do escopo', 'Nada; o motivo chega por e-mail']]
-        .map(([st, sig, faz]) => `<tr><td>${chipStatus(st)}</td><td>${sig}</td><td>${faz}</td></tr>`).join('')}
-      </tbody></table></div>
-      <p class="pequeno suave" style="margin:10px 0 0">Prazo de solução: ${S.base.prazoNormal} dias úteis, de segunda a sexta, das ${S.publico.horaInicio}h às ${S.publico.horaFim}h, sem contar feriados. Se o sistema estiver bloqueado, o chamado passa à frente da fila. Você recebe um e-mail a cada mudança de status.</p>
-    </details>
     <div class="filtros">
       ${varios ? `<select id="f-projeto" aria-label="Projeto"><option value="">Todos os projetos</option>${projetos.map(p => `<option value="${esc(p.id)}" ${f.projeto === p.id ? 'selected' : ''}>${esc(p.nome)}</option>`).join('')}</select>` : ''}
       <input type="search" id="f-busca" placeholder="Buscar por número ou palavra…" value="${esc(f.busca || '')}" aria-label="Buscar">
@@ -622,6 +650,28 @@ async function telaCliente() {
   render();
 }
 
+// Cliente: o que cada status significa e o que fazer (item "Como funciona" do menu)
+function telaComoFunciona() {
+  lembrarTela('como');
+  topo();
+  marcarAba('como');
+  app.innerHTML = `<div class="cabeca-lista"><div><h1>Como funciona</h1><p class="suave" style="margin:0">O caminho de um chamado, do registro até o fechamento.</p></div></div>
+    <div class="bloco">
+      <div class="rolagem"><table><thead><tr><th>Status</th><th>O que significa</th><th>O que você faz</th></tr></thead><tbody>
+      ${[['Aberto', 'Chamado registrado, na fila por ordem de chegada', 'Aguarda; pode complementar pelo chat'],
+         ['Em triagem', 'O atendimento confere categoria, módulo e se o sistema está bloqueado', 'Aguarda'],
+         ['Em atendimento', 'O atendimento está trabalhando na solução', 'Acompanha e responde pelo chat'],
+         ['Aguardando cliente', 'Falta uma informação ou um teste seu', `Responde em até ${S.base.diasAutoFechamento} dias úteis; sem resposta, o chamado fecha`],
+         ['Encaminhado ao setor', 'Um setor especializado está cuidando do seu caso', 'Aguarda; o atendimento continua sendo seu contato'],
+         ['Resolvido', 'A correção ou a resposta foi enviada', `Confirma a correção ou pede reajuste em até ${S.base.diasAutoFechamento} dias úteis`],
+         ['Fechado', 'Chamado encerrado', `Responde a pesquisa; pode reabrir em até ${S.base.diasReabertura} dias úteis`],
+         ['Cancelado', 'Duplicado, aberto por engano ou fora do escopo', 'Nada; o motivo chega por e-mail']]
+        .map(([st, sig, faz]) => `<tr><td>${chipStatus(st)}</td><td>${sig}</td><td>${faz}</td></tr>`).join('')}
+      </tbody></table></div>
+      <p class="pequeno suave" style="margin:14px 0 0">Prazo de solução: ${S.base.prazoNormal} dias úteis, de segunda a sexta, das ${S.publico.horaInicio}h às ${S.publico.horaFim}h, sem contar feriados. Se o sistema estiver bloqueado, o chamado passa à frente da fila. Você recebe um e-mail a cada mudança de status e pode fechar um chamado a qualquer momento pelo botão <b>Fechar chamado</b>.</p>
+    </div>`;
+}
+
 function linhaChamado(c, equipe, mostrarProjeto) {
   const prazo = FINAIS.includes(c.Status) ? '' : `<span class="${c.atrasado ? 'atrasado' : ''}">Prazo ${fmtDH(c.Prazo)}${c.atrasado ? ' (vencido)' : ''}</span>`;
   return `<button class="linha-ch ${c.Prioridade === 'Bloqueio' ? 'bloq' : ''}" data-id="${esc(c.Id)}">
@@ -637,6 +687,7 @@ function linhaChamado(c, equipe, mostrarProjeto) {
 // ───────── Novo chamado (cliente ou N1 por telefone) ─────────
 async function telaNovoChamado(porTelefone) {
   lembrarTela(porTelefone ? 'telefone' : 'novo');
+  if (!porTelefone) marcarAba('novo');
   const nav = novaTela();
   let clientes = [];
   if (porTelefone) {
@@ -708,7 +759,7 @@ async function telaNovoChamado(porTelefone) {
     const btn = $('#b-enviar');
     const id = await acao(btn, () => api('abrirChamado', S.token, dados));
     if (!id) return;
-    const arquivos = Array.from($('#n-arquivos').files);
+    const arquivos = arquivosDe('n-arquivos');
     if (arquivos.length) {
       btn.disabled = true;
       try { await enviarArquivos(id, arquivos, false, (i, n, nome) => { $('#progresso').textContent = `Enviando anexo ${i} de ${n}: ${nome}`; }); }
@@ -731,6 +782,7 @@ function trilha(status) {
 async function telaDetalhe(id) {
   lembrarTela('detalhe', id);
   topo();
+  if (S.usuario.tipo === 'cliente') marcarAba('cliente');
   const nav = novaTela();
   app.innerHTML = '<div class="carregando">Abrindo chamado…</div>';
   let d;
@@ -790,6 +842,20 @@ async function telaDetalhe(id) {
 
 function painelCliente(c, d, a, recarregar) {
   const p = $('#painel');
+  // Fechar chamado: o cliente encerra quando quiser (resolveu por conta própria, não precisa mais...)
+  const fechar = a.fechar ? `<div class="painel-acao painel-fechar"><div class="painel-fechar-linha">
+      <p style="margin:0"><b>Não precisa mais deste chamado?</b> Você pode encerrá-lo agora. Se o problema voltar, dá para reabrir.</p>
+      <button class="btn" id="b-fechar">Fechar chamado</button></div>
+    <div id="fechar-form" hidden style="margin-top:12px"><div class="campo"><label for="t-fechar">Motivo (opcional)</label><textarea id="t-fechar" placeholder="Ex.: resolvi por conta própria"></textarea></div>
+      <div class="botoes"><button class="btn btn-primario" id="b-confirmar-fechar">Confirmar fechamento</button><button class="btn" id="b-cancelar-fechar">Cancelar</button></div></div></div>` : '';
+  const ligarFechar = () => {
+    if (!$('#b-fechar')) return;
+    $('#b-fechar').onclick = () => { $('#fechar-form').hidden = false; $('#b-fechar').hidden = true; $('#t-fechar').focus(); };
+    $('#b-cancelar-fechar').onclick = () => { $('#fechar-form').hidden = true; $('#b-fechar').hidden = false; };
+    $('#b-confirmar-fechar').onclick = async e => {
+      if (await acao(e.target, () => api('fecharChamado', S.token, c.Id, $('#t-fechar').value), 'Chamado fechado.')) recarregar();
+    };
+  };
   if (a.pesquisa) {
     p.innerHTML = `<div class="painel-acao"><h3>Como foi o atendimento?</h3><div id="pesq"></div></div>`;
     formPesquisa({ token: S.token }, c.Id, $('#pesq'), recarregar);
@@ -809,7 +875,8 @@ function painelCliente(c, d, a, recarregar) {
   }
   if (c.Status === 'Aguardando cliente') {
     p.innerHTML = `<div class="painel-acao atencao"><h3>Precisamos da sua resposta</h3>
-      <p style="margin:0">Responda no chat abaixo até <b>${fmtDH(d.limiteResposta)}</b>. Depois disso, o chamado é fechado.</p></div>`;
+      <p style="margin:0">Responda no chat abaixo até <b>${fmtDH(d.limiteResposta)}</b>. Depois disso, o chamado é fechado.</p></div>${fechar}`;
+    ligarFechar();
     return;
   }
   if (c.Status === 'Fechado') {
@@ -823,7 +890,11 @@ function painelCliente(c, d, a, recarregar) {
       p.innerHTML = `<div class="painel-acao atencao"><p style="margin:0">O prazo para reabrir terminou. Se precisar, <button class="btn-link" id="b-novo2">abra um novo chamado</button>.</p></div>`;
       $('#b-novo2').onclick = () => telaNovoChamado(false);
     }
+    return;
   }
+  // Em andamento (aberto, em triagem, em atendimento, encaminhado): só a opção de fechar
+  p.innerHTML = fechar;
+  ligarFechar();
 }
 
 function painelN1(c, a, recarregar) {
@@ -963,20 +1034,72 @@ function desenharFeed(rolar) {
   itensDoCanal(ch.canal).forEach(h => { html += separador(h.DataHora) + bolhaChat(h); });
   feed.innerHTML = html;
   $$('[data-arq]', feed).forEach(b => b.onclick = () => baixar(ch.id, b.dataset.arq, b));
+  ligarAcoesChat(feed);
   if (rolar || perto) feed.scrollTop = feed.scrollHeight;
 }
+
+// Reações (como no WhatsApp) e respostas a uma mensagem específica
+const EMOJIS_REACAO = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
+const reagivel = h => !!h.Id && ['MENSAGEM', 'NOTA_INTERNA', 'ANEXO'].includes(h.Tipo);
+function nomeAutorChat(h) {
+  if (h.meu) return 'Você';
+  if (h.Perfil === 'Cliente' || h.Perfil === 'Sistema') return h.Perfil === 'Sistema' ? (h.Autor || 'Sistema') : h.Autor;
+  return S.usuario.tipo === 'cliente' ? `${h.Autor}, atendimento` : `${h.Autor} (${h.Perfil})`;
+}
+const resumoChat = h => h.Tipo === 'ANEXO' ? 'Arquivo: ' + h.Texto : String(h.Texto || '').slice(0, 140);
+// Pode responder no canal aberto? (mesma regra do campo de mensagem)
+const podeEscreverCanal = () => { const ch = S.chat; return !!ch && (ch.canal === 'equipe' || (ch.podeCliente && ch.acoes.responder)); };
 
 function bolhaChat(h) {
   const hora = new Date(h.DataHora).toLocaleTimeString('pt-BR', { timeZone: TZ, hour: '2-digit', minute: '2-digit' });
   if (h.Tipo === 'STATUS') return `<div class="evento">${hora}, status: <b>${esc(h.Texto)}</b></div>`;
   if (h.Tipo === 'AVISO' || h.Tipo === 'PESQUISA') return `<div class="evento">${hora}, ${esc(h.Texto)}</div>`;
-  const ehCliente = S.usuario.tipo === 'cliente';
-  const autor = h.meu ? '' : h.Perfil === 'Cliente' ? esc(h.Autor) : h.Perfil === 'Sistema' ? 'Sistema'
-    : ehCliente ? `${esc(h.Autor)}, atendimento` : `${esc(h.Autor)} (${esc(h.Perfil)})`;
+  const autor = h.meu ? '' : esc(nomeAutorChat(h));
   const corpo = h.Tipo === 'ANEXO'
     ? `<div class="arquivo"><span>Arquivo: <b>${esc(h.Texto)}</b></span>${h.Ref ? `<button data-arq="${esc(h.Ref)}">Baixar</button>` : ''}</div>`
     : `<div class="corpo">${esc(h.Texto)}</div>`;
-  return `<div class="bolha ${h.meu ? 'meu' : ''}">${autor ? `<div class="autor">${autor}</div>` : ''}${corpo}<div class="hora">${hora}</div></div>`;
+  const citada = h.RespostaA ? S.chat.itens.find(x => x.Id === h.RespostaA) : null;
+  const citacao = h.RespostaA ? `<button type="button" class="citacao" data-ir="${esc(h.RespostaA)}" title="Ver a mensagem respondida">
+    <b>${esc(citada ? nomeAutorChat(citada) : 'Mensagem')}</b><span>${esc(citada ? resumoChat(citada) : 'mensagem indisponível')}</span></button>` : '';
+  const reacoes = (h.reacoes || []).length ? `<div class="reacoes">${h.reacoes.map(r =>
+    `<button type="button" class="reacao ${r.meu ? 'minha' : ''}" data-reagir="${esc(h.Id)}" data-emoji="${esc(r.emoji)}" title="${esc(r.nomes.join(', '))}" aria-label="${esc(r.emoji + ' ' + r.total + (r.meu ? ', sua reação' : ''))}">${esc(r.emoji)}<span>${r.total}</span></button>`).join('')}</div>` : '';
+  const acoes = reagivel(h) ? `<div class="msg-acoes">
+    <button type="button" class="msg-acao" data-abrir-reacoes="${esc(h.Id)}" aria-label="Reagir" title="Reagir">☺</button>
+    ${podeEscreverCanal() ? `<button type="button" class="msg-acao" data-responder="${esc(h.Id)}" aria-label="Responder" title="Responder">↩</button>` : ''}</div>` : '';
+  return `<div class="bolha ${h.meu ? 'meu' : ''}" ${h.Id ? `data-msg="${esc(h.Id)}"` : ''}>${acoes}${autor ? `<div class="autor">${autor}</div>` : ''}${citacao}${corpo}<div class="hora">${hora}</div>${reacoes}</div>`;
+}
+
+function ligarAcoesChat(feed) {
+  const ch = S.chat;
+  $$('[data-abrir-reacoes]', feed).forEach(b => b.onclick = () => {
+    const bolha = b.closest('.bolha');
+    const aberto = $('.seletor-reacao', bolha);
+    $$('.seletor-reacao', feed).forEach(s => s.remove());
+    if (aberto) return;
+    bolha.insertAdjacentHTML('beforeend', `<div class="seletor-reacao" role="group" aria-label="Escolha uma reação">${EMOJIS_REACAO.map(e =>
+      `<button type="button" data-reagir="${esc(b.dataset.abrirReacoes)}" data-emoji="${e}" aria-label="Reagir com ${e}">${e}</button>`).join('')}</div>`);
+    ligarAcoesChat(bolha);
+  });
+  $$('[data-reagir]', feed).forEach(b => b.onclick = async () => {
+    $$('.seletor-reacao', $('#feed')).forEach(s => s.remove());
+    try { await api('reagirChat', S.token, ch.id, b.dataset.reagir, b.dataset.emoji); } catch (e) { if (e.message !== 'SESSAO_EXPIRADA') aviso(e.message, 'erro'); return; }
+    agendarChat(0);
+  });
+  $$('[data-responder]', feed).forEach(b => b.onclick = () => {
+    const item = ch.itens.find(x => x.Id === b.dataset.responder);
+    if (!item) return;
+    guardarRascunho();
+    ch.respondendo = { canal: ch.canal, item };
+    desenharRodape();
+    if ($('#chat-txt')) $('#chat-txt').focus();
+  });
+  $$('[data-ir]', feed).forEach(b => b.onclick = () => {
+    const alvo = $(`#feed [data-msg="${CSS.escape(b.dataset.ir)}"]`);
+    if (!alvo) return;
+    alvo.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    alvo.classList.add('destaque');
+    setTimeout(() => alvo.classList.remove('destaque'), 1600);
+  });
 }
 
 function desenharRodape() {
@@ -991,7 +1114,9 @@ function desenharRodape() {
     : 'Chat encerrado porque o chamado está ' + ch.c.Status.toLowerCase() + '.';
   if (!podeEscrever) { rod.innerHTML = `<div class="chat-fechado">${esc(motivo)}</div>`; return; }
   const ph = ch.canal === 'equipe' ? 'Mensagem para a equipe (o cliente não vê)' : 'Escreva uma mensagem';
-  rod.innerHTML = `<div class="chat-compor">
+  const resp = ch.respondendo && ch.respondendo.canal === ch.canal ? ch.respondendo.item : null;
+  rod.innerHTML = `${resp ? `<div class="respondendo"><div><b>Respondendo a ${esc(nomeAutorChat(resp))}</b><span>${esc(resumoChat(resp))}</span></div>
+      <button type="button" class="msg-acao" id="b-cancelar-resposta" aria-label="Cancelar resposta" title="Cancelar resposta">✕</button></div>` : ''}<div class="chat-compor">
     ${ch.acoes.anexar || ch.canal === 'equipe' ? `<label class="clip" title="Enviar arquivo" aria-label="Enviar arquivo"><input type="file" id="chat-arq" multiple>📎</label>` : ''}
     <textarea id="chat-txt" rows="1" placeholder="${ph}" aria-label="${ph}"></textarea>
     <button class="btn btn-primario" id="chat-env">Enviar</button></div>`;
@@ -1002,6 +1127,7 @@ function desenharRodape() {
   ta.oninput = () => { crescer(); ch.digitandoAte = Date.now() + 4000; S.rascunhos[ch.id + ':' + ch.canal] = ta.value; };
   ta.onkeydown = e => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); enviarMensagemChat(); } };
   $('#chat-env').onclick = enviarMensagemChat;
+  if ($('#b-cancelar-resposta')) $('#b-cancelar-resposta').onclick = () => { guardarRascunho(); ch.respondendo = null; desenharRodape(); $('#chat-txt').focus(); };
   if ($('#chat-arq')) $('#chat-arq').onchange = async e => {
     const arquivos = Array.from(e.target.files);
     if (!arquivos.length) return;
@@ -1024,9 +1150,11 @@ async function enviarMensagemChat() {
   const texto = ta.value.trim();
   if (!texto) return;
   const canal = ch.canal;
-  const ok = await acao(btn, () => api('enviarChat', S.token, ch.id, canal, texto));
+  const respostaA = ch.respondendo && ch.respondendo.canal === canal ? ch.respondendo.item.Id : '';
+  const ok = await acao(btn, () => api('enviarChat', S.token, ch.id, canal, texto, respostaA));
   if (!ok) return;
   delete S.rascunhos[ch.id + ':' + canal];
+  if (respostaA) { ch.respondendo = null; if (S.chat === ch) desenharRodape(); }
   if (S.chat === ch && $('#chat-txt')) { ta.value = ''; ta.style.height = 'auto'; ta.focus(); }
   ch.digitandoAte = 0;
   agendarChat(0);
@@ -1051,6 +1179,12 @@ async function cicloChat(ch) {
     desenharPresenca(r.online);
     const dig = r.digitando[ch.canal];
     if ($('#digitando').textContent !== 'Enviando arquivo…') $('#digitando').textContent = dig ? dig + ' está digitando…' : '';
+    // Reações podem mudar em mensagens antigas: atualiza e redesenha só se algo mudou
+    if (r.reacoes) {
+      let mudou = false;
+      ch.itens.forEach(h => { const n = r.reacoes[h.Id] || []; if (JSON.stringify(n) !== JSON.stringify(h.reacoes || [])) { h.reacoes = n; mudou = true; } });
+      if (mudou && !r.itens.length && !$('#feed .seletor-reacao')) desenharFeed(false);
+    }
     if (r.itens.length) {
       ch.itens = ch.itens.concat(r.itens);
       ch.total = r.total;
@@ -1279,6 +1413,8 @@ async function telaProjetos(acessos) {
       sso() ? api('gruposProjetoLldap', S.token) : [], sso() ? api('listarClientesLldap', S.token) : []]);
   } catch (e) { return; }
   if (nav !== S.nav) return;
+  // Clientes (grupo Clientes do LLDAP) de um projeto
+  const clientesDe = id => clientesLldap.filter(c => (c.projetoIds || []).includes(String(id)));
   // Campo do grupo Projeto_... (modo Authelia), com os grupos já vistos nos logins como sugestão
   const campoGrupo = valor => sso() ? `<div class="campo"><label for="pj-grupo">Grupo do projeto no LLDAP</label>
     <input type="text" id="pj-grupo" list="pj-grupos" autocapitalize="none" spellcheck="false" autocomplete="off" placeholder="Projeto_..." value="${esc(valor || '')}">
@@ -1290,13 +1426,20 @@ async function telaProjetos(acessos) {
       <div class="opcoes"><a class="btn" href="${esc(pastaGeral.url)}" target="_blank" rel="noopener">Ver pastas no Drive</a>${sso() ? '' : '<button class="btn" id="b-sinc">Buscar pastas novas</button><button class="btn btn-primario" id="b-novo-pj">Criar projeto</button>'}</div></div>
     ${caixaAcessos(acessos)}
     <div class="bloco" id="form-pj" hidden style="margin-bottom:18px"></div>
-    <div class="bloco rolagem">${lista.length ? `<table><thead><tr><th>Projeto</th><th>${sso() ? 'Grupo no LLDAP' : 'Login'}</th><th>Responsável</th><th>E-mail</th><th>Acesso</th><th>Último login</th><th scope="col">Ações</th></tr></thead>
+    <div class="bloco rolagem">${lista.length ? (sso() ? `<table><thead><tr><th>Projeto</th><th>Grupo no LLDAP</th><th class="num">Clientes</th><th>Acesso</th><th>Último login</th><th scope="col">Ações</th></tr></thead>
+      <tbody>${lista.map((c, i) => { const cli = clientesDe(c.ProjetoId); const ultimo = cli.map(x => x.UltimoAcesso).filter(Boolean).sort().pop(); return `<tr>
+        <td><b>${esc(c.Projeto)}</b><div class="suave pequeno">${esc(c.ProjetoId)}${c.modulos.length ? ', ' + c.modulos.length + ' módulos' : ', sem módulos'}${c.pastaUrl ? `, <a href="${esc(c.pastaUrl)}" target="_blank" rel="noopener">pasta</a>` : ''}</div></td>
+        <td>${c.GrupoLldap ? `<code translate="no">${esc(c.GrupoLldap)}</code>` : '<span class="atrasado">não definido</span>'}</td>
+        <td class="num">${cli.length}</td>
+        <td>${c.Ativo ? 'Ativo' : '<span class="suave">Desativado</span>'}</td><td>${ultimo ? fmtDH(ultimo) : '<span class="suave">nunca</span>'}</td>
+        <td class="acoes-linha">${botaoIcone('ver', 'Ver clientes de ' + c.Projeto, `data-ver-clientes="${i}"`)}${botaoIcone('editar', 'Editar ' + c.Projeto, `data-editar="${i}"`)}</td></tr>`; }).join('')}</tbody></table>`
+    : `<table><thead><tr><th>Projeto</th><th>Login</th><th>Responsável</th><th>E-mail</th><th>Acesso</th><th>Último login</th><th scope="col">Ações</th></tr></thead>
       <tbody>${lista.map((c, i) => `<tr>
         <td><b>${esc(c.Projeto)}</b><div class="suave pequeno">${esc(c.ProjetoId)}${c.modulos.length ? ', ' + c.modulos.length + ' módulos' : ', sem módulos'}${c.pastaUrl ? `, <a href="${esc(c.pastaUrl)}" target="_blank" rel="noopener">pasta</a>` : ''}</div></td>
-        <td>${sso() ? (c.GrupoLldap ? `<code translate="no">${esc(c.GrupoLldap)}</code>` : '<span class="atrasado">não definido</span>') : `<code translate="no">${esc(c.Login)}</code>${c.senhaTemporaria ? '<div class="suave pequeno">senha temporária</div>' : ''}`}</td>
+        <td><code translate="no">${esc(c.Login)}</code>${c.senhaTemporaria ? '<div class="suave pequeno">senha temporária</div>' : ''}</td>
         <td>${esc(c.Responsavel || '—')}${c.NomePreferido ? `<div class="suave pequeno">prefere "${esc(c.NomePreferido)}"</div>` : ''}</td><td>${c.Email ? esc(c.Email) : '<span class="atrasado">sem e-mail</span>'}</td>
         <td>${c.Ativo ? 'Ativo' : '<span class="suave">Desativado</span>'}</td><td>${c.UltimoAcesso ? fmtDH(c.UltimoAcesso) : '<span class="suave">nunca</span>'}</td>
-        <td class="acoes-linha"><button class="btn-link" data-editar="${i}">Editar</button>${sso() ? '' : `<button class="btn-link" data-senha="${i}">Nova senha</button>`}</td></tr>`).join('')}</tbody></table>`
+        <td class="acoes-linha"><button class="btn-link" data-editar="${i}">Editar</button><button class="btn-link" data-senha="${i}">Nova senha</button></td></tr>`).join('')}</tbody></table>`)
       : `<div class="vazio">${sso() ? 'Nenhum projeto ainda. Eles aparecem quando alguém de um grupo Projeto_... do LLDAP entra no SAC.' : 'Nenhum projeto ainda. Use <b>Buscar pastas novas</b> para trazer as pastas da pasta geral ou <b>Criar projeto</b>.'}</div>`}</div>
     ${sso() ? `<div class="bloco rolagem" style="margin-top:18px"><h2>Clientes que já entraram</h2>
       <p class="suave pequeno">Usuários do grupo Clientes no LLDAP. Os projetos de cada um vêm dos grupos Projeto_... e são atualizados a cada login.</p>
@@ -1306,6 +1449,18 @@ async function telaProjetos(acessos) {
         <td>${c.UltimoAcesso ? fmtDH(c.UltimoAcesso) : '<span class="suave">nunca</span>'}</td></tr>`).join('')}</tbody></table>`
       : '<p class="suave">Nenhum cliente entrou pela conta Innomaker ainda.</p>'}</div>` : ''}`;
   ligarCopiar(acessos || []);
+
+  // Olhinho: clientes daquele projeto, numa janela
+  $$('[data-ver-clientes]').forEach(b => b.onclick = () => {
+    const pj = lista[Number(b.dataset.verClientes)];
+    const cli = clientesDe(pj.ProjetoId);
+    const painel = $('#form-pj');
+    painel.innerHTML = cli.length ? `<div class="rolagem"><table><thead><tr><th>Nome</th><th>Usuário</th><th>E-mail</th><th>Acesso</th><th>Último login</th></tr></thead>
+      <tbody>${cli.map(c => `<tr><td>${esc(c.Nome)}</td><td><code translate="no">${esc(c.Login)}</code></td><td>${esc(c.Email)}</td>
+        <td>${c.Ativo ? 'Ativo' : '<span class="suave">Desativado</span>'}</td><td>${c.UltimoAcesso ? fmtDH(c.UltimoAcesso) : '<span class="suave">nunca</span>'}</td></tr>`).join('')}</tbody></table></div>`
+      : `<p class="suave">Nenhum cliente deste projeto entrou ainda. Os clientes aparecem aqui no primeiro login: precisam estar nos grupos <code translate="no">Clientes</code> e <code translate="no">${esc(pj.GrupoLldap || 'Projeto_...')}</code> do LLDAP.</p>`;
+    abrirEditor(painel, 'Clientes de ' + pj.Projeto);
+  });
 
   if ($('#b-sinc')) $('#b-sinc').onclick = async e => {
     const r = await acao(e.target, () => api('sincronizarProjetos', S.token));
@@ -1479,13 +1634,13 @@ async function telaConfig(aba) {
   let c;
   try { c = await api('configuracoes', S.token); } catch (e) { return; }
   if (nav !== S.nav) return;
-  const nomes = { geral: 'Geral', categorias: 'Categorias', perfis: 'Perfis', modulos: 'Módulos', manuais: 'Manuais', feriados: 'Feriados', situacao: 'Situação do sistema' };
+  const nomes = { geral: 'Geral', automaticas: 'Horário e mensagens', categorias: 'Categorias', perfis: 'Perfis', modulos: 'Módulos', manuais: 'Manuais', feriados: 'Feriados', situacao: 'Situação do sistema' };
   app.innerHTML = `
     <div class="cabeca-lista"><div><h1>Configurações</h1><p class="suave" style="margin:0">Tudo o que o SAC usa se ajusta aqui, sem abrir a planilha.</p></div></div>
     <div class="sub-abas">${Object.keys(nomes).map(k => `<button data-sub="${k}" aria-pressed="${k === aba}">${nomes[k]}</button>`).join('')}</div>
     <div id="cfg"></div>`;
   $$('[data-sub]').forEach(b => b.onclick = () => telaConfig(b.dataset.sub));
-  ({ situacao: cfgSituacao, geral: cfgGeral, categorias: cfgCategorias, perfis: cfgPerfis, modulos: cfgModulos, manuais: cfgManuais, feriados: cfgFeriados })[aba](c);
+  ({ situacao: cfgSituacao, geral: cfgGeral, automaticas: cfgAutomaticas, categorias: cfgCategorias, perfis: cfgPerfis, modulos: cfgModulos, manuais: cfgManuais, feriados: cfgFeriados })[aba](c);
 }
 
 const ROTULOS_CONFIG = {
@@ -1541,7 +1696,7 @@ function cfgGeral(c) {
     return `<input type="text" id="${id}" data-chave="${i.chave}" value="${esc(i.valor)}" ${i.tipo === 'pasta' ? 'placeholder="Cole o ID ou o link da pasta do Drive…"' : ''}>`;
   };
   $('#cfg').innerHTML = `<div class="bloco"><form id="f-cfg" autocomplete="off">
-    ${c.geral.map(i => `<div class="cfg-linha"><div><label for="cfg-${i.chave}">${esc(ROTULOS_CONFIG[i.chave] || i.chave)}</label><div class="ajuda">${esc(i.descricao)}</div></div><div>${campo(i)}</div></div>`).join('')}
+    ${c.geral.filter(i => !CHAVES_AUTOMATICAS.includes(i.chave)).map(i => `<div class="cfg-linha"><div><label for="cfg-${i.chave}">${esc(ROTULOS_CONFIG[i.chave] || i.chave)}</label><div class="ajuda">${esc(i.descricao)}</div></div><div>${campo(i)}</div></div>`).join('')}
     <button class="btn btn-primario" id="b-cfg" style="margin-top:12px">Salvar configurações</button></form></div>`;
   $('#f-cfg').onsubmit = async ev => {
     ev.preventDefault();
@@ -1549,6 +1704,100 @@ function cfgGeral(c) {
     $$('[data-chave]').forEach(el => { v[el.dataset.chave] = el.value; });
     const r = await acao($('#b-cfg'), () => api('salvarConfiguracoes', S.token, v));
     if (r) { aviso(r, 'ok'); try { S.publico = await api('dadosPublicos'); montarRodape(); } catch (e) { } }
+  };
+}
+
+// ───────── Horário de funcionamento e mensagens automáticas (tabela de decisão M01/M02/M03) ─────────
+const CHAVES_AUTOMATICAS = ['HORA_INICIO', 'HORA_FIM', 'NOTIFICAR_EQUIPE', 'DIAS_FUNCIONAMENTO', 'LIMITE_ALTO_VOLUME', 'MENSAGEM_AUTOMATICA', 'MSG_M01', 'MSG_M02', 'MSG_M03'];
+const DIAS_SEMANA = [[1, 'Seg'], [2, 'Ter'], [3, 'Qua'], [4, 'Qui'], [5, 'Sex'], [6, 'Sáb'], [0, 'Dom']];
+const MENSAGENS_AUTO = [
+  ['M01', 'Fora do horário de funcionamento', 'Antes ou depois do expediente, fins de semana e feriados.'],
+  ['M02', 'Atendimento normal', 'Dentro do horário e até o limite de chamados ativos.'],
+  ['M03', 'Alto volume de atendimentos', 'Dentro do horário e acima do limite de chamados ativos.']
+];
+// Mesma regra do backend (regraAutomatica_): fora do horário tem prioridade sobre o volume
+const regraAuto = (dentro, ativos, limite) => !dentro ? 'M01' : ativos > limite ? 'M03' : 'M02';
+const SITUACAO_AUTO = { M01: 'Fora do expediente', M02: 'Atendimento normal', M03: 'Alto volume de chamados' };
+
+function cfgAutomaticas(c) {
+  const v = {};
+  c.geral.forEach(i => { v[i.chave] = i.valor; });
+  const ag = c.automatico || {};
+  const dias = String(v.DIAS_FUNCIONAMENTO || '1,2,3,4,5').split(',').map(Number);
+  const limite = Number(v.LIMITE_ALTO_VOLUME) || 10;
+  const hora = chave => `<select id="au-${chave}" data-chave="${chave}">${Array.from({ length: 24 }, (_, h) => `<option value="${h}" ${Number(v[chave]) === h ? 'selected' : ''}>${String(h).padStart(2, '0')}:00</option>`).join('')}</select>`;
+  const simnao = chave => `<select id="au-${chave}" data-chave="${chave}"><option value="SIM" ${/^s/i.test(v[chave]) ? 'selected' : ''}>Sim</option><option value="NAO" ${/^s/i.test(v[chave]) ? '' : 'selected'}>Não</option></select>`;
+  const linhasDecisao = [[false, false], [false, true], [true, false], [true, true]];
+  $('#cfg').innerHTML = `${cabecalhoPainel('relogio', 'Horário e mensagens automáticas', 'Quando a equipe é avisada e qual resposta o cliente recebe ao abrir um chamado.')}
+    <div class="auto-agora" role="status"><span>Agora</span> <b>${ag.dentro ? 'dentro do horário' : 'fora do horário'}</b>, ${num(ag.ativos)} ${ag.ativos === 1 ? 'chamado ativo' : 'chamados ativos'}:
+      um chamado aberto agora recebe <span class="chip-codigo">${esc(ag.codigo || '')}</span> ${esc(ag.situacao || '')}.
+      ${ag.avisosNaFila ? `<br>${ag.avisosNaFila} ${ag.avisosNaFila === 1 ? 'aviso de chamado novo espera' : 'avisos de chamados novos esperam'} o início do expediente para ir à equipe.` : ''}</div>
+    <form id="f-auto" autocomplete="off">
+      <div class="bloco"><h2>Horário de funcionamento</h2>
+        <div class="campo"><span class="rotulo" id="lb-dias">Dias de funcionamento</span>
+          <div class="dias-semana" role="group" aria-labelledby="lb-dias">${DIAS_SEMANA.map(([n, t]) => `<label class="dia"><input type="checkbox" data-dia="${n}" ${dias.includes(n) ? 'checked' : ''}><span>${t}</span></label>`).join('')}</div></div>
+        <div class="grade-2">
+          <div class="campo"><label for="au-HORA_INICIO">Início do expediente</label>${hora('HORA_INICIO')}</div>
+          <div class="campo"><label for="au-HORA_FIM">Fim do expediente</label>${hora('HORA_FIM')}</div>
+        </div>
+        <p class="ajuda">Feriados (Configurações &gt; Feriados) ficam fora do horário. O horário também vale para os prazos dos chamados.</p>
+        <div class="campo"><label for="au-NOTIFICAR_EQUIPE">Avisar Admin e N1 por e-mail a cada chamado novo</label>${simnao('NOTIFICAR_EQUIPE')}
+          <div class="ajuda">O e-mail vai para quem está nos grupos sac_admin e sac_n1, só no horário de funcionamento. Chamados que chegam fora dele são avisados num resumo quando o expediente começa.</div></div>
+      </div>
+      <div class="bloco"><h2>Tabela de decisão</h2>
+        <div class="grade-2">
+          <div class="campo"><label for="au-MENSAGEM_AUTOMATICA">Responder o cliente automaticamente</label>${simnao('MENSAGEM_AUTOMATICA')}</div>
+          <div class="campo"><label for="au-LIMITE_ALTO_VOLUME">Limite de chamados ativos</label><input type="number" min="1" max="1000" step="1" id="au-LIMITE_ALTO_VOLUME" data-chave="LIMITE_ALTO_VOLUME" value="${limite}"></div>
+        </div>
+        <div class="rolagem"><table class="tabela-decisao"><thead><tr><th>Dentro do horário?</th><th>Chamados ativos acima do limite?</th><th>Situação</th><th>Mensagem</th></tr></thead><tbody>
+          ${linhasDecisao.map(([dentro, acima]) => { const cod = regraAuto(dentro, acima ? limite + 1 : 0, limite); const atual = dentro === !!ag.dentro && acima === (ag.ativos > limite);
+            return `<tr class="${atual ? 'atual' : ''}"><td>${dentro ? 'Sim' : 'Não'}</td><td>${acima ? 'Sim' : 'Não'}</td><td>${SITUACAO_AUTO[cod]}</td><td><span class="chip-codigo">${cod}</span>${atual ? ' <span class="suave pequeno">agora</span>' : ''}</td></tr>`; }).join('')}
+        </tbody></table></div>
+        <p class="ajuda">Fora do expediente, M01 tem prioridade, qualquer que seja o volume. A resposta sai uma vez só, quando o chamado é aberto, no chat e no e-mail de abertura.</p>
+      </div>
+      <div class="bloco"><h2>Mensagens</h2>
+        <p class="ajuda" style="margin-top:0">Use <code>{saudacao}</code> para "Bom dia", "Boa tarde" ou "Boa noite", conforme a hora.</p>
+        ${MENSAGENS_AUTO.map(([cod, tit, cond]) => `<div class="campo"><label for="au-MSG_${cod}"><span class="chip-codigo">${cod}</span> ${tit}</label><div class="ajuda">${cond}</div>
+          <textarea id="au-MSG_${cod}" data-chave="MSG_${cod}" rows="7">${esc(v['MSG_' + cod] || '')}</textarea></div>`).join('')}
+      </div>
+      <div class="bloco simulador"><h2>Simulador</h2><p class="ajuda" style="margin-top:0">Teste as regras sem abrir um chamado. Usa os textos e o limite acima, mesmo antes de salvar.</p>
+        <div class="sim-controles">
+          <fieldset><legend>Dentro do horário?</legend><label><input type="radio" name="sim-dentro" value="1" ${ag.dentro ? 'checked' : ''}> Sim</label><label><input type="radio" name="sim-dentro" value="0" ${ag.dentro ? '' : 'checked'}> Não</label></fieldset>
+          <div class="campo"><label for="sim-ativos">Chamados ativos: <b id="sim-ativos-n"></b></label><input type="range" id="sim-ativos" min="0" max="30" value="${Math.min(ag.ativos || 0, 30)}">
+            <div class="ajuda">0 a 30 chamados · limite: <span id="sim-limite"></span></div></div>
+          <fieldset><legend>Saudação</legend>${[['Bom dia', 'Manhã'], ['Boa tarde', 'Tarde'], ['Boa noite', 'Noite']].map(([s, t]) => `<label><input type="radio" name="sim-saudacao" value="${s}" ${ag.saudacao === s ? 'checked' : ''}> ${t}</label>`).join('')}</fieldset>
+        </div>
+        <div class="sim-resultado"><div class="sim-cabeca"><span>Resultado</span> <span class="chip-codigo" id="sim-codigo"></span> <span id="sim-situacao"></span></div>
+          <div class="sim-previa" id="sim-previa"></div>
+          <button type="button" class="btn" id="b-copiar-sim">Copiar mensagem</button></div>
+      </div>
+      <button class="btn btn-primario" id="b-auto">Salvar horário e mensagens</button>
+    </form>`;
+  const simular = () => {
+    const lim = Number($('#au-LIMITE_ALTO_VOLUME').value) || 10;
+    const ativos = Number($('#sim-ativos').value);
+    const dentro = ($('input[name=sim-dentro]:checked') || {}).value === '1';
+    const saud = ($('input[name=sim-saudacao]:checked') || {}).value || 'Bom dia';
+    const cod = regraAuto(dentro, ativos, lim);
+    $('#sim-ativos-n').textContent = ativos;
+    $('#sim-limite').textContent = lim;
+    $('#sim-codigo').textContent = cod;
+    $('#sim-situacao').textContent = SITUACAO_AUTO[cod];
+    $('#sim-previa').textContent = $('#au-MSG_' + cod).value.replace(/\{saudacao\}/gi, saud);
+  };
+  $$('#f-auto input, #f-auto textarea, #f-auto select').forEach(el => { el.oninput = simular; el.onchange = simular; });
+  simular();
+  $('#b-copiar-sim').onclick = async () => {
+    try { await navigator.clipboard.writeText($('#sim-previa').textContent); aviso('Mensagem copiada.', 'ok'); }
+    catch (e) { window.prompt('Copie a mensagem:', $('#sim-previa').textContent); }
+  };
+  $('#f-auto').onsubmit = async ev => {
+    ev.preventDefault();
+    const valores = {};
+    $$('#f-auto [data-chave]').forEach(el => { valores[el.dataset.chave] = el.value; });
+    valores.DIAS_FUNCIONAMENTO = $$('#f-auto [data-dia]').filter(el => el.checked).map(el => el.dataset.dia).join(',');
+    const r = await acao($('#b-auto'), () => api('salvarConfiguracoes', S.token, valores));
+    if (r) { aviso(r, 'ok'); telaConfig('automaticas'); }
   };
 }
 
@@ -1596,8 +1845,15 @@ function formularioPerfil(host, aoSalvar, aninhado) {
 function cfgPerfis(c) {
   const perfis = c.perfis || [];
   const descricao = nome => nome === 'Admin' ? 'Administra o SAC, a equipe e as configurações.' : nome === 'N1' ? 'Atende os clientes e encaminha chamados aos setores.' : 'Acessa os chamados encaminhados a este setor.';
-  $('#cfg').innerHTML = `<div class="cabeca-lista"><div><h2>Perfis da equipe</h2><p class="suave">${sso() ? 'Os perfis vêm dos grupos sac_ do LLDAP.' : 'Cadastre setores para organizar os acessos e o encaminhamento de chamados.'}</p></div>${sso() ? '' : '<button type="button" class="btn btn-primario" id="b-novo-perfil">Adicionar perfil</button>'}</div><div id="form-perfil" hidden></div>
-    <div class="cadastro-cards">${perfis.map((p, i) => `<article class="cadastro-card"><h3>${esc(p.nome)}</h3><p class="suave pequeno">${descricao(p.nome)}</p>${sso() ? `<p class="pequeno">Grupo no LLDAP: <code translate="no">${esc(grupoLldap(p.nome))}</code></p>` : ''}<div class="card-acoes">${p.fixo ? '<span class="suave pequeno">Perfil padrão</span>' : `<button type="button" class="btn-link acao-excluir" data-perfil-excluir="${i}">Excluir</button>`}</div></article>`).join('')}</div>`;
+  $('#cfg').innerHTML = `${cabecalhoPainel('equipe', 'Perfis da equipe',
+      sso() ? 'Os perfis vêm dos grupos sac_ do LLDAP: coloque cada pessoa no grupo do seu perfil.' : 'Cadastre setores para organizar os acessos e o encaminhamento de chamados.',
+      sso() ? '' : '<button type="button" class="btn btn-primario" id="b-novo-perfil">Adicionar perfil</button>')}
+    <div id="form-perfil" hidden></div>
+    <div class="tabela-cadastro"><table><thead><tr><th class="col-n">#</th><th>Perfil</th><th>O que faz</th>${sso() ? '<th>Grupo no LLDAP</th>' : ''}<th class="col-acoes">Ações</th></tr></thead><tbody>
+      ${perfis.map((p, i) => `<tr><td class="col-n">${i + 1}</td><td class="col-nome">${esc(p.nome)}</td><td class="suave">${descricao(p.nome)}</td>
+        ${sso() ? `<td><code translate="no">${esc(grupoLldap(p.nome))}</code></td>` : ''}
+        <td class="col-acoes">${p.fixo ? '<span class="suave pequeno">Perfil padrão</span>' : botaoIcone('excluir', 'Excluir ' + p.nome, `data-perfil-excluir="${i}"`)}</td></tr>`).join('')}
+    </tbody></table></div>`;
   if ($('#b-novo-perfil')) $('#b-novo-perfil').onclick = () => formularioPerfil($('#form-perfil'), r => { S.base.setores = r.setores; telaConfig('perfis'); });
   $$('[data-perfil-excluir]').forEach(b => b.onclick = async () => {
     const nome = perfis[Number(b.dataset.perfilExcluir)].nome;

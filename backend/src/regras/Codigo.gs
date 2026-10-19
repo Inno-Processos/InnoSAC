@@ -99,7 +99,8 @@ const ABAS = {
     'Titulo', 'Descricao', 'Bloqueio', 'Prioridade', 'Setor', 'Status', 'UltimaAtualizacao',
     'UltimaMudancaStatus', 'Prazo', 'AvisoAtrasoEnviado', 'ResolvidoEm', 'FechadoEm', 'FechadoPor',
     'PastaId', 'Reaberturas', 'MotivoCancelamento'],
-  Historico: ['Chamado', 'DataHora', 'Autor', 'Perfil', 'Tipo', 'Texto', 'Visivel', 'Ref'],
+  Historico: ['Chamado', 'DataHora', 'Autor', 'Perfil', 'Tipo', 'Texto', 'Visivel', 'Ref', 'Id', 'RespostaA'], // RespostaA: Id da mensagem citada
+  Reacoes: ['Chamado', 'Mensagem', 'Login', 'Nome', 'Emoji', 'DataHora'], // uma reação por pessoa em cada mensagem
   Leituras: ['Chave', 'Chamado', 'Email', 'Canal', 'LidoEm'], // Email guarda o login de quem leu
   Anexos: ['Chamado', 'DataHora', 'Autor', 'Nome', 'ArquivoId', 'Tamanho', 'Visivel'],
   Pesquisa: ['Chamado', 'DataHora', 'Nota', 'Resolvido', 'Comentario'],
@@ -123,11 +124,21 @@ const CONFIG_PADRAO = [
   ['PRAZO_BLOQUEIO_DIAS_UTEIS', 1, 'Prazo de solução da prioridade Bloqueio (A DEFINIR pela equipe; aceita 0,5)'],
   ['DIAS_UTEIS_AUTOFECHAMENTO', 5, 'Dias úteis sem resposta do cliente até o sistema fechar'],
   ['DIAS_UTEIS_REABERTURA', 5, 'Dias úteis que o cliente tem para reabrir depois de fechado'],
-  ['NOTIFICAR_EQUIPE', 'SIM', 'SIM = o N1 recebe e-mail a cada chamado novo e resposta do cliente'],
-  ['BUSCAR_PROJETOS_NOVOS', 'SIM', 'SIM = a cada hora, toda pasta nova na pasta geral vira um projeto com login']
+  ['NOTIFICAR_EQUIPE', 'SIM', 'SIM = Admin e N1 recebem e-mail a cada chamado novo e resposta do cliente (chamado novo: só no horário de funcionamento)'],
+  ['BUSCAR_PROJETOS_NOVOS', 'SIM', 'SIM = a cada hora, toda pasta nova na pasta geral vira um projeto com login'],
+  // Horário de funcionamento e mensagens automáticas (tabela de decisão M01/M02/M03)
+  ['DIAS_FUNCIONAMENTO', '1,2,3,4,5', 'Dias de funcionamento: 0 = domingo, 1 = segunda ... 6 = sábado'],
+  ['LIMITE_ALTO_VOLUME', 10, 'Acima deste número de chamados ativos, a resposta automática avisa sobre o alto volume (M03)'],
+  ['MENSAGEM_AUTOMATICA', 'SIM', 'SIM = ao abrir um chamado, o cliente recebe a resposta automática M01, M02 ou M03'],
+  ['MSG_M01', '{saudacao}!\n\nRecebemos seu chamado, mas no momento estamos fora do nosso horário de funcionamento.\n\nPedimos que aguarde. Assim que retomarmos nossas atividades, encaminharemos sua solicitação para um de nossos atendentes o mais rápido possível.\n\nAgradecemos pela compreensão!',
+    'M01 — fora do horário de funcionamento (antes ou depois do expediente, fins de semana e feriados)'],
+  ['MSG_M02', '{saudacao}!\n\nRecebemos seu chamado com sucesso.\n\nSua solicitação foi registrada e será encaminhada para um de nossos atendentes.\n\nPedimos que aguarde um momento. Em breve, daremos continuidade ao seu atendimento.',
+    'M02 — atendimento normal (dentro do horário e até o limite de chamados ativos)'],
+  ['MSG_M03', '{saudacao}!\n\nRecebemos seu chamado com sucesso.\n\nNo momento, estamos com um volume elevado de atendimentos, o que pode aumentar nosso tempo de resposta.\n\nPedimos que aguarde. Nossa equipe está trabalhando para atender todas as solicitações o mais rápido possível.\n\nAgradecemos pela paciência e compreensão!',
+    'M03 — alto volume (dentro do horário e acima do limite de chamados ativos)']
 ];
 const NUMERICOS = ['HORA_INICIO', 'HORA_FIM', 'PRAZO_NORMAL_DIAS_UTEIS', 'PRAZO_BLOQUEIO_DIAS_UTEIS',
-  'DIAS_UTEIS_AUTOFECHAMENTO', 'DIAS_UTEIS_REABERTURA'];
+  'DIAS_UTEIS_AUTOFECHAMENTO', 'DIAS_UTEIS_REABERTURA', 'LIMITE_ALTO_VOLUME'];
 
 const CATEGORIAS_PADRAO = ['Dúvida', 'Erro (bug)', 'Melhoria', 'Treinamento', 'Configuração', 'Financeiro/Contrato'];
 // Só o projeto 4.2.22 (Software ERP Linave & Servinave) tem módulos; os demais projetos não pedem módulo
@@ -469,9 +480,41 @@ function feriados_() {
   return s;
 }
 
+// Dias de funcionamento configuráveis (padrão: segunda a sexta); valem para prazos, avisos e mensagens automáticas
+function diasFuncionamento_() {
+  const dias = String(cfg_().DIAS_FUNCIONAMENTO || '').split(/[\s,;]+/).filter(String).map(Number).filter(function (d) { return d >= 0 && d <= 6; });
+  return dias.length ? dias : [1, 2, 3, 4, 5];
+}
+
 function ehDiaUtil_(d) {
-  const w = d.getDay();
-  return w !== 0 && w !== 6 && !feriados_()[fmtDia_(d)];
+  return diasFuncionamento_().indexOf(d.getDay()) >= 0 && !feriados_()[fmtDia_(d)];
+}
+
+// Dentro do expediente: dia de funcionamento (sem feriado) e entre HORA_INICIO e HORA_FIM
+function dentroDoExpediente_(d) {
+  const h = d.getHours() + d.getMinutes() / 60;
+  return ehDiaUtil_(d) && h >= cfg_().HORA_INICIO && h < cfg_().HORA_FIM;
+}
+
+function saudacao_(d) {
+  const h = d.getHours();
+  return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite';
+}
+
+function chamadosAtivos_() {
+  return ler_('Chamados').filter(function (c) { return c.Id && FINAIS.indexOf(c.Status) < 0; }).length;
+}
+
+// Tabela de decisão das respostas automáticas (fora do horário tem prioridade sobre o volume):
+//   fora do horário → M01 | dentro e até o limite → M02 | dentro e acima do limite → M03
+function regraAutomatica_(dentro, ativos) {
+  if (!dentro) return { codigo: 'M01', situacao: 'Fora do expediente' };
+  if (ativos > cfg_().LIMITE_ALTO_VOLUME) return { codigo: 'M03', situacao: 'Alto volume de chamados' };
+  return { codigo: 'M02', situacao: 'Atendimento normal' };
+}
+
+function mensagemAutomatica_(codigo, agora) {
+  return String(cfg_()['MSG_' + codigo] || '').replace(/\{saudacao\}/gi, saudacao_(agora));
 }
 
 function proximoInicioUtil_(d) {
@@ -851,7 +894,7 @@ function listarClientesLldap(token) {
   ler_('Projetos').forEach(function (pj) { nomes[String(pj.ProjetoId)] = String(pj.Projeto); });
   return lerSeExistir_('Clientes').map(function (c) {
     return pub_({ Login: c.Login, Nome: c.Nome, Email: c.Email, Ativo: ativo_(c.Ativo), UltimoAcesso: c.UltimoAcesso,
-      projetos: idsProjetos_(c.Projetos).map(function (i) { return nomes[i] || i; }) });
+      projetoIds: idsProjetos_(c.Projetos), projetos: idsProjetos_(c.Projetos).map(function (i) { return nomes[i] || i; }) });
   });
 }
 
@@ -1030,10 +1073,22 @@ function exigirAcesso_(p, ch) {
   if (!podeVer_(p, ch)) throw new Error('Você não tem acesso a este chamado.');
 }
 
-function registrar_(chamado, p, tipo, texto, visivel, ref) {
+// Instalações anteriores às reações e respostas no chat ganham as colunas/aba novas (uma vez por execução)
+let _chatPronto = false;
+function garantirChat_() {
+  if (_chatPronto) return;
+  const ss = ss_();
+  if (!ss.getSheetByName('Reacoes')) ss.insertSheet('Reacoes').getRange(1, 1, 1, ABAS.Reacoes.length).setValues([ABAS.Reacoes]);
+  garantirColunas_('Historico');
+  _chatPronto = true;
+}
+
+function registrar_(chamado, p, tipo, texto, visivel, ref, respostaA) {
+  garantirChat_();
   inserir_('Historico', {
     Chamado: chamado, DataHora: new Date(), Autor: p.nome, Perfil: p.perfil,
-    Tipo: tipo, Texto: texto, Visivel: visivel ? 'SIM' : 'NAO', Ref: ref || ''
+    Tipo: tipo, Texto: texto, Visivel: visivel ? 'SIM' : 'NAO', Ref: ref || '',
+    Id: Utilities.getUuid().replace(/-/g, '').slice(0, 12), RespostaA: respostaA ? limpa_(respostaA, 40) : ''
   });
   marcarVersaoChat_(chamado);
 }
@@ -1102,6 +1157,7 @@ function acoes_(p, ch) {
       anexar: ativo,
       confirmar: ch.Status === STATUS.RESOLVIDO,
       reajuste: ch.Status === STATUS.RESOLVIDO,
+      fechar: ativo,
       reabrir: ch.Status === STATUS.FECHADO && limiteReabertura_(ch) > new Date(),
       pesquisa: pesquisaPendente_(ch)
     };
@@ -1226,10 +1282,16 @@ function abrirChamado(token, d) {
     return novo;
   });
 
-  emailStatus_(ch);
-  notificarN1_((ch.Prioridade === 'Bloqueio' ? '[BLOQUEIO] ' : '') + 'Novo chamado ' + ch.Id + ' — ' + ch.Projeto,
-    '<p><b>' + esc_(ch.Projeto) + '</b> abriu o chamado <b>' + ch.Id + '</b>: ' + esc_(ch.Titulo) + '.</p>' +
-    '<p>Categoria: ' + esc_(ch.Categoria) + (ch.Modulo ? ' · Módulo: ' + esc_(ch.Modulo) : '') + ' · Sistema bloqueado: ' + ch.Bloqueio + '</p>', ch.Id);
+  // Resposta automática ao cliente pela tabela de decisão (M01, M02 ou M03): uma vez só, na abertura
+  let automatica = '';
+  if (p.tipo === 'cliente' && String(cfg_().MENSAGEM_AUTOMATICA).toUpperCase() === 'SIM') {
+    const agora = new Date();
+    const regra = regraAutomatica_(dentroDoExpediente_(agora), chamadosAtivos_());
+    automatica = mensagemAutomatica_(regra.codigo, agora);
+    if (automatica) comTrava_(function () { registrar_(ch.Id, { nome: 'Atendimento automático', perfil: 'Sistema' }, 'MENSAGEM', automatica, true, regra.codigo); });
+  }
+  emailStatus_(ch, automatica);
+  avisarEquipeNovoChamado_(ch);
   return ch.Id;
 }
 
@@ -1244,7 +1306,7 @@ function novoId_() {
 
 // ───────────────────────── Chamados: ações do cliente ─────────────────────────
 
-function responder(token, id, texto) {
+function responder(token, id, texto, respostaA) {
   const p = sessao_(token);
   texto = limpa_(texto, 20000);
   if (!texto) throw new Error('Escreva a mensagem.');
@@ -1254,7 +1316,7 @@ function responder(token, id, texto) {
     const ch = obterChamado_(id);
     exigirAcesso_(p, ch);
     if (!acoes_(p, ch).responder) throw new Error('Este chamado não aceita mensagens no status "' + ch.Status + '".');
-    registrar_(ch.Id, p, 'MENSAGEM', texto, true);
+    registrar_(ch.Id, p, 'MENSAGEM', texto, true, '', respostaA);
     let mudou = false;
     if (p.tipo === 'cliente' && ch.Status === STATUS.AGUARDANDO) { mudarStatus_(ch, STATUS.ATENDIMENTO, p); mudou = true; }
     else tocar_(ch);
@@ -1284,6 +1346,23 @@ function confirmarCorrecao(token, id) {
     return mudarStatus_(ch, STATUS.FECHADO, p, { FechadoPor: 'Cliente' });
   });
   emailStatus_(ch);
+  return true;
+}
+
+// O cliente encerra o chamado quando quiser (já resolveu, desistiu...). Pode reabrir no prazo de reabertura.
+function fecharChamado(token, id, motivo) {
+  const p = sessao_(token);
+  motivo = limpa_(motivo, 2000);
+  const ch = comTrava_(function () {
+    const ch = obterChamado_(id);
+    exigirAcesso_(p, ch);
+    if (p.tipo !== 'cliente' || !acoes_(p, ch).fechar) throw new Error('Este chamado já está encerrado.');
+    registrar_(ch.Id, p, 'MENSAGEM', 'Cliente fechou o chamado.' + (motivo ? ' Motivo: ' + motivo : ''), true);
+    return mudarStatus_(ch, STATUS.FECHADO, p, { FechadoPor: 'Cliente' });
+  });
+  emailStatus_(ch);
+  notificarN1_('Chamado fechado pelo cliente — ' + ch.Id,
+    '<p><b>' + esc_(ch.Projeto) + '</b> fechou o chamado <b>' + ch.Id + '</b>: ' + esc_(ch.Titulo) + '.</p>' + (motivo ? citacao_(motivo) : ''), ch.Id);
   return true;
 }
 
@@ -1423,7 +1502,7 @@ function devolverAoN1(token, id, nota) {
   return true;
 }
 
-function notaInterna(token, id, texto) {
+function notaInterna(token, id, texto, respostaA) {
   const p = sessao_(token);
   texto = limpa_(texto, 20000);
   if (p.tipo !== 'equipe') throw new Error('Notas internas são só da equipe.');
@@ -1431,7 +1510,7 @@ function notaInterna(token, id, texto) {
   const ch = comTrava_(function () {
     const ch = obterChamado_(id);
     exigirAcesso_(p, ch);
-    registrar_(ch.Id, p, 'NOTA_INTERNA', texto, false);
+    registrar_(ch.Id, p, 'NOTA_INTERNA', texto, false, '', respostaA);
     tocar_(ch);
     return ch;
   });
@@ -1458,14 +1537,57 @@ function ehMeu_(p, h) {
   return p.tipo === 'cliente' ? h.Perfil === 'Cliente' : (h.Perfil === p.perfil && String(h.Autor) === p.nome);
 }
 
+// Mensagens antigas (sem Id) usam a linha da planilha, que não muda: o Historico nunca apaga linhas
+function idMensagem_(h) { return String(h.Id || ('L' + h._linha)); }
+
 function itensChat_(p, id) {
   const equipe = p.tipo === 'equipe';
+  const reacoes = reacoesDoChamado_(p, id);
   return ler_('Historico')
     .filter(function (h) { return String(h.Chamado) === String(id) && (equipe || String(h.Visivel).toUpperCase() === 'SIM'); })
     .map(function (h) {
-      return pub_({ DataHora: h.DataHora, Autor: !equipe && h.Perfil === 'Cliente' && h.Autor === p.projeto ? nomeProjetoCliente_(h.Autor) : h.Autor, Perfil: h.Perfil, Tipo: h.Tipo, Texto: h.Texto,
-        Ref: h.Ref || '', interno: String(h.Visivel).toUpperCase() !== 'SIM', meu: ehMeu_(p, h) });
+      return pub_({ Id: idMensagem_(h), DataHora: h.DataHora, Autor: !equipe && h.Perfil === 'Cliente' && h.Autor === p.projeto ? nomeProjetoCliente_(h.Autor) : h.Autor, Perfil: h.Perfil, Tipo: h.Tipo, Texto: h.Texto,
+        Ref: h.Ref || '', RespostaA: String(h.RespostaA || ''), interno: String(h.Visivel).toUpperCase() !== 'SIM', meu: ehMeu_(p, h),
+        reacoes: reacoes[idMensagem_(h)] || [] });
     });
+}
+
+// ───────── Reações no chat (como no WhatsApp: uma por pessoa em cada mensagem) ─────────
+const EMOJIS_REACAO = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
+
+// { Id da mensagem: [{ emoji, total, meu, nomes }] }
+function reacoesDoChamado_(p, id) {
+  const porMsg = {};
+  lerSeExistir_('Reacoes').filter(function (r) { return String(r.Chamado) === String(id); }).forEach(function (r) {
+    const m = String(r.Mensagem);
+    const lista = porMsg[m] = porMsg[m] || [];
+    let e = lista.filter(function (x) { return x.emoji === String(r.Emoji); })[0];
+    if (!e) { e = { emoji: String(r.Emoji), total: 0, meu: false, nomes: [] }; lista.push(e); }
+    e.total++;
+    e.nomes.push(String(r.Nome || r.Login));
+    if (normLogin_(r.Login) === p.login) e.meu = true;
+  });
+  return porMsg;
+}
+
+function reagirChat(token, id, mensagem, emoji) {
+  const p = sessao_(token);
+  acessoChat_(token, p, id);
+  if (EMOJIS_REACAO.indexOf(emoji) < 0) throw new Error('Reação inválida.');
+  mensagem = String(mensagem || '');
+  const alvo = itensChat_(p, id).filter(function (h) { return h.Id === mensagem; })[0];
+  if (!alvo || ['MENSAGEM', 'NOTA_INTERNA', 'ANEXO'].indexOf(alvo.Tipo) < 0) throw new Error('Mensagem não encontrada.');
+  comTrava_(function () {
+    garantirChat_();
+    const minha = ler_('Reacoes').filter(function (r) {
+      return String(r.Chamado) === String(id) && String(r.Mensagem) === mensagem && normLogin_(r.Login) === p.login;
+    })[0];
+    if (minha && String(minha.Emoji) === emoji) aba_('Reacoes').deleteRow(minha._linha); // tocar de novo tira a reação
+    else if (minha) atualizar_('Reacoes', minha._linha, { Emoji: emoji, DataHora: new Date() });
+    else inserir_('Reacoes', { Chamado: id, Mensagem: mensagem, Login: p.login, Nome: p.nome, Emoji: emoji, DataHora: new Date() });
+    marcarVersaoChat_(id);
+  });
+  return true;
 }
 
 // Versão única a cada gravação (a hora em milissegundos podia se repetir e esconder mensagens novas)
@@ -1525,13 +1647,17 @@ function chatAtualizar(token, id, desde, ver, digitandoCanal) {
   const todos = itensChat_(p, id);
   r.itens = todos.slice(Number(desde) || 0);
   r.total = todos.length;
+  // Reações mudam mensagens antigas: vão todas, para a tela atualizar as bolhas já desenhadas
+  r.reacoes = {};
+  todos.forEach(function (h) { if (h.reacoes.length) r.reacoes[h.Id] = h.reacoes; });
   return r;
 }
 
-function enviarChat(token, id, canal, texto) {
+// respostaA: Id da mensagem que está sendo respondida (opcional)
+function enviarChat(token, id, canal, texto, respostaA) {
   const p = sessao_(token);
-  if (canal === 'equipe') return notaInterna(token, id, texto);
-  return responder(token, id, texto);
+  if (canal === 'equipe') return notaInterna(token, id, texto, respostaA);
+  return responder(token, id, texto, respostaA);
 }
 
 function chatMarcarLido(token, id, canal) {
@@ -1747,7 +1873,9 @@ function confirmarTrocaEmail(token, codigo) {
 const TIPOS_CONFIG = {
   HORA_INICIO: 'hora', HORA_FIM: 'hora', PRAZO_NORMAL_DIAS_UTEIS: 'dias', PRAZO_BLOQUEIO_DIAS_UTEIS: 'dias',
   DIAS_UTEIS_AUTOFECHAMENTO: 'dias', DIAS_UTEIS_REABERTURA: 'dias', NOTIFICAR_EQUIPE: 'simnao', BUSCAR_PROJETOS_NOVOS: 'simnao',
-  URL_APP: 'url', URL_PORTAL: 'portal', PASTA_GERAL_ID: 'pasta', EMAIL_ADMIN: 'email'
+  URL_APP: 'url', URL_PORTAL: 'portal', PASTA_GERAL_ID: 'pasta', EMAIL_ADMIN: 'email',
+  DIAS_FUNCIONAMENTO: 'diassemana', LIMITE_ALTO_VOLUME: 'numero', MENSAGEM_AUTOMATICA: 'simnao',
+  MSG_M01: 'mensagem', MSG_M02: 'mensagem', MSG_M03: 'mensagem'
 };
 
 function iso_(d) { return d instanceof Date ? Utilities.formatDate(d, Session.getScriptTimeZone(), 'yyyy-MM-dd') : String(d || ''); }
@@ -1773,7 +1901,15 @@ function configuracoes(token) {
     }).sort(function (a, b) { return a.ordem - b.ordem; }),
     projetos: ler_('Projetos').map(function (pj) { return { id: String(pj.ProjetoId), nome: String(pj.Projeto), modulos: modulosDoProjeto_(pj), modulosDetalhes: detalhesModulos_(pj.Modulos) }; })
       .sort(function (a, b) { return a.nome.localeCompare(b.nome, 'pt-BR'); }),
-    linave: MODULOS_LINAVE
+    linave: MODULOS_LINAVE,
+    // Situação agora, para a aba Mensagens automáticas mostrar qual regra vale neste momento
+    automatico: (function () {
+      const agora = new Date(), dentro = dentroDoExpediente_(agora), ativos = chamadosAtivos_();
+      const regra = regraAutomatica_(dentro, ativos);
+      let fila = [];
+      try { fila = JSON.parse(PropertiesService.getScriptProperties().getProperty('FILA_AVISOS_NOVOS') || '[]'); } catch (e) { }
+      return { dentro: dentro, ativos: ativos, codigo: regra.codigo, situacao: regra.situacao, saudacao: saudacao_(agora), avisosNaFila: fila.length };
+    })()
   });
 }
 
@@ -1797,6 +1933,17 @@ function salvarConfiguracoes(token, valores) {
       v = n;
     } else if (tipo === 'simnao') {
       v = /^s/i.test(v) ? 'SIM' : 'NAO';
+    } else if (tipo === 'diassemana') {
+      const dias = v.split(/[\s,;]+/).filter(String).map(Number).filter(function (d, i, a) { return d >= 0 && d <= 6 && Math.floor(d) === d && a.indexOf(d) === i; });
+      if (!dias.length) throw new Error('Marque pelo menos um dia de funcionamento.');
+      v = dias.sort().join(',');
+    } else if (tipo === 'numero') {
+      const n = Number(v);
+      if (!(n >= 1 && n <= 1000) || Math.floor(n) !== n) throw new Error(k + ': use um número inteiro entre 1 e 1000.');
+      v = n;
+    } else if (tipo === 'mensagem') {
+      v = String(valores[k]).replace(/\r\n/g, '\n').trim().slice(0, 3000);
+      if (!v) throw new Error('A mensagem automática não pode ficar vazia.');
     } else if (tipo === 'email') {
       v = normEmail_(v);
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) throw new Error('E-mail do administrador inválido.');
@@ -2332,6 +2479,7 @@ function rotinaHoraria() {
   const agora = new Date();
   const c = cfg_();
   const envios = [];
+  try { enviarAvisosPendentes_(); } catch (e) { console.error('Avisos pendentes: ' + e.message); }
   if (!modoAuthelia_() && String(c.BUSCAR_PROJETOS_NOVOS).toUpperCase() === 'SIM') {
     try {
       const novos = comTrava_(sincronizarProjetos_);
@@ -2521,6 +2669,53 @@ function emailCliente_(ch) {
 function emailsEquipe_(perfil) {
   return ler_('Equipe').filter(function (m) { return String(m.Perfil).trim().toLowerCase() === perfil.toLowerCase() && ativo_(m.Ativo) && m.Email; })
     .map(function (m) { return normEmail_(m.Email); });
+}
+
+// Chamado novo: Admin e N1 (grupos sac_admin e sac_n1) recebem e-mail SÓ no horário de funcionamento.
+// Fora dele, o aviso espera numa fila e sai num resumo quando o expediente começa (rotinaHoraria).
+function avisarEquipeNovoChamado_(ch) {
+  if (String(cfg_().NOTIFICAR_EQUIPE).toUpperCase() !== 'SIM') return;
+  const item = { id: String(ch.Id), projeto: String(ch.Projeto), titulo: String(ch.Titulo), categoria: String(ch.Categoria),
+    modulo: String(ch.Modulo || ''), bloqueio: String(ch.Bloqueio), prioridade: String(ch.Prioridade) };
+  if (dentroDoExpediente_(new Date())) { enviarAvisoNovos_([item]); return; }
+  comTrava_(function () {
+    const props = PropertiesService.getScriptProperties();
+    let fila = [];
+    try { fila = JSON.parse(props.getProperty('FILA_AVISOS_NOVOS') || '[]'); } catch (e) { }
+    fila.push(item);
+    props.setProperty('FILA_AVISOS_NOVOS', JSON.stringify(fila.slice(-200)));
+  });
+}
+
+function enviarAvisoNovos_(itens) {
+  const emails = emailsEquipe_('Admin').concat(emailsEquipe_('N1')).filter(function (e, i, a) { return a.indexOf(e) === i; });
+  if (!emails.length || !itens.length) return;
+  const linha = function (n) {
+    return '<p><b>' + esc_(n.projeto) + '</b> abriu o chamado <b>' + n.id + '</b>: ' + esc_(n.titulo) + '.<br>' +
+      'Categoria: ' + esc_(n.categoria) + (n.modulo ? ' · Módulo: ' + esc_(n.modulo) : '') + ' · Sistema bloqueado: ' + esc_(n.bloqueio) + '</p>';
+  };
+  if (itens.length === 1) {
+    const n = itens[0];
+    enviarEmail_(emails.join(','), (n.prioridade === 'Bloqueio' ? '[BLOQUEIO] ' : '') + 'Novo chamado ' + n.id + ' — ' + n.projeto,
+      linha(n) + botao_('Abrir chamado', linkChamado_(n.id)));
+    return;
+  }
+  const bloqueios = itens.filter(function (n) { return n.prioridade === 'Bloqueio'; }).length;
+  enviarEmail_(emails.join(','), (bloqueios ? '[BLOQUEIO] ' : '') + itens.length + ' chamados recebidos fora do horário',
+    '<p>Estes chamados chegaram fora do horário de funcionamento:</p>' +
+    itens.map(function (n) { return linha(n) + '<p style="margin-top:-6px"><a href="' + linkChamado_(n.id) + '">Abrir ' + n.id + '</a></p>'; }).join(''));
+}
+
+// Chamado pela rotina de hora em hora: no horário, envia os avisos que esperavam na fila
+function enviarAvisosPendentes_() {
+  if (!dentroDoExpediente_(new Date())) return 0;
+  const props = PropertiesService.getScriptProperties();
+  let fila = [];
+  try { fila = JSON.parse(props.getProperty('FILA_AVISOS_NOVOS') || '[]'); } catch (e) { }
+  if (!fila.length) return 0;
+  props.deleteProperty('FILA_AVISOS_NOVOS');
+  enviarAvisoNovos_(fila);
+  return fila.length;
 }
 
 function notificarN1_(assunto, html, id, sempre) {
