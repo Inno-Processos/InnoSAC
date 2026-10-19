@@ -1,382 +1,3 @@
-<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-<base target="_top">
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#41a639">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..100,500..800&family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-<style>
-:root{
-  /* Innomaker: --marca é o verde oficial; --acento é o mesmo verde escurecido para texto e botões legíveis */
-  --marca:#41a639; --marca-texto:#0f2a0d;
-  --tinta:#1f5c1b; --tinta-2:#163f13; --acento:#2b7f26; --acento-claro:#e7f4e5;
-  --papel:#f5f8f4; --superficie:#ffffff; --texto:#1c2a1b; --suave:#5b6b5a; --linha:#d6e1d4;
-  --bloqueio:#b3261e; --bloqueio-claro:#fbe9e7; --atencao:#9a5d06; --atencao-claro:#fdf2df;
-  --ok:#2f7d3a; --ok-claro:#e6f2e7; --nota:#fff6d9; --nota-borda:#e8cf7a;
-  --raio-p:6px; --raio-g:10px;
-  --fonte-titulo:'Archivo','Arial Narrow',Arial,sans-serif;
-  --fonte:'Public Sans',system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;
-  color-scheme:light;
-}
-@media (prefers-color-scheme:dark){
-  :root{
-    --marca:#41a639; --marca-texto:#0b200a;
-    --tinta:#8fd987; --tinta-2:#0f1f0e; --acento:#6cc964; --acento-claro:#17321a;
-    --papel:#0f170f; --superficie:#162216; --texto:#e5eee4; --suave:#9fb19d; --linha:#2c3f2b;
-    --bloqueio:#f08b80; --bloqueio-claro:#3a1c1a; --atencao:#e9b25a; --atencao-claro:#33270f;
-    --ok:#7fc489; --ok-claro:#172d1a; --nota:#2f2a15; --nota-borda:#6b5c24;
-    color-scheme:dark;
-  }
-}
-*{box-sizing:border-box}
-html,body{margin:0}
-body{font-family:var(--fonte);font-size:15px;line-height:1.55;color:var(--texto);background:var(--papel);-webkit-font-smoothing:antialiased}
-a{color:var(--acento)}
-button,input,select,textarea{font:inherit;color:inherit}
-:focus-visible{outline:3px solid var(--acento);outline-offset:2px}
-h1,h2,h3{font-family:var(--fonte-titulo);font-stretch:85%;line-height:1.15;margin:0 0 .4em;letter-spacing:-.01em}
-h1{font-size:1.9rem;font-weight:750}
-h2{font-size:1.25rem;font-weight:700}
-h3{font-size:1.02rem;font-weight:700}
-p{margin:0 0 .8em}
-.suave{color:var(--suave)}
-.pequeno{font-size:.86rem}
-
-/* Topo */
-.topo{background:var(--marca);color:var(--marca-texto);display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 20px;position:sticky;top:0;z-index:5}
-.marca{display:flex;align-items:baseline;gap:10px;font-family:var(--fonte-titulo);font-stretch:80%}
-.marca b{font-size:1.35rem;font-weight:800;letter-spacing:.02em}
-.marca span{opacity:.85;font-weight:500}
-.quem{display:flex;align-items:center;gap:12px;font-size:.9rem}
-.quem small{opacity:.75}
-.topo .btn-fantasma{color:var(--marca-texto);border-color:rgba(15,42,13,.35)}
-.topo .btn-fantasma:hover{background:rgba(255,255,255,.22);border-color:var(--marca-texto)}
-nav.abas{display:flex;gap:4px;flex-wrap:wrap;padding:0 20px;background:var(--superficie);border-bottom:1px solid var(--linha)}
-nav.abas button{background:none;border:0;border-bottom:3px solid transparent;padding:12px 14px;cursor:pointer;color:var(--suave);font-weight:600}
-nav.abas button[aria-current="page"]{color:var(--texto);border-bottom-color:var(--marca)}
-
-main{max-width:1180px;margin:0 auto;padding:24px 20px 60px}
-
-/* Botões e campos */
-.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:1px solid var(--linha);background:var(--superficie);padding:9px 16px;border-radius:var(--raio-p);cursor:pointer;font-weight:600;text-decoration:none;color:var(--texto)}
-.btn:hover{border-color:var(--acento)}
-.btn:disabled,button[disabled]{opacity:.55;cursor:wait;pointer-events:none}
-button[data-travado]{cursor:wait}
-.btn-primario{background:var(--acento);border-color:var(--acento);color:#fff}
-@media (prefers-color-scheme:dark){.btn-primario{color:#08201f}}
-.btn-perigo{color:var(--bloqueio);border-color:currentColor;background:transparent}
-.btn-fantasma{background:transparent}
-.btn-link{background:none;border:0;padding:0;color:var(--acento);cursor:pointer;font-weight:600}
-label{display:block;font-weight:600;font-size:.9rem;margin-bottom:4px}
-.campo{margin-bottom:14px}
-.campo .ajuda{font-weight:400;color:var(--suave);font-size:.84rem;margin-top:3px}
-input[type=text],input[type=email],input[type=tel],input[type=date],input[type=search],input[type=password],input:not([type]),select,textarea{
-  width:100%;padding:9px 11px;border:1px solid var(--linha);border-radius:var(--raio-p);background:var(--superficie)}
-textarea{min-height:96px;resize:vertical}
-.grade-2{display:grid;grid-template-columns:1fr 1fr;gap:0 16px}
-@media (max-width:640px){.grade-2{grid-template-columns:1fr}}
-.opcoes{display:flex;gap:10px;flex-wrap:wrap}
-.opcoes label{display:flex;align-items:center;gap:8px;font-weight:500;border:1px solid var(--linha);border-radius:var(--raio-p);padding:9px 14px;cursor:pointer;background:var(--superficie);margin:0}
-.opcoes label:has(input:checked){border-color:var(--acento);background:var(--acento-claro)}
-.check{display:flex;align-items:center;gap:8px;font-weight:500}
-
-/* Blocos */
-.bloco{background:var(--superficie);border:1px solid var(--linha);border-radius:var(--raio-g);padding:20px}
-.bloco + .bloco{margin-top:16px}
-.cabeca-lista{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;margin:8px 0 14px}
-.filtros{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}
-.filtros > *{flex:1 1 160px}
-.filtros input[type=search]{flex:2 1 240px}
-.vazio{padding:40px 20px;text-align:center;color:var(--suave);border:1px dashed var(--linha);border-radius:var(--raio-g)}
-
-/* Entrada */
-.entrada{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,.9fr);gap:28px;align-items:start;margin-top:12px}
-@media (max-width:820px){.entrada{grid-template-columns:1fr}}
-.entrada h1{font-size:2.6rem;font-stretch:78%;font-weight:800;max-width:14ch}
-.entrada .bloco{padding:28px}
-.manuais{list-style:none;margin:0;padding:0}
-.manuais li{border-top:1px solid var(--linha);padding:12px 0}
-.manuais li:first-child{border-top:0}
-.manuais a{font-weight:600}
-.faixa-manuais{background:var(--acento-claro);border-radius:var(--raio-g);padding:14px 18px;margin-bottom:18px}
-.faixa-manuais summary{cursor:pointer;font-weight:600}
-.faixa-manuais .manuais{margin-top:8px}
-
-/* Protocolo e chips */
-.protocolo{font-family:var(--fonte-titulo);font-stretch:75%;font-weight:700;letter-spacing:.03em;font-variant-numeric:tabular-nums;color:var(--tinta)}
-.chip{display:inline-block;padding:2px 10px;border-radius:999px;font-size:.8rem;font-weight:600;white-space:nowrap;border:1px solid transparent}
-.st-aberto{background:#e8edf6;color:#2c4a7a}
-.st-em-triagem{background:#ece8f6;color:#55408a}
-.st-em-atendimento{background:var(--acento-claro);color:var(--acento)}
-.st-aguardando-cliente{background:var(--atencao-claro);color:var(--atencao)}
-.st-encaminhado-ao-setor{background:#e6eef0;color:#335a62}
-.st-resolvido{background:var(--ok-claro);color:var(--ok)}
-.st-fechado{background:transparent;border-color:var(--linha);color:var(--suave)}
-.st-cancelado{background:transparent;border-color:var(--linha);color:var(--suave);text-decoration:line-through}
-@media (prefers-color-scheme:dark){.st-aberto{background:#1c2a40;color:#a9c1ea}.st-em-triagem{background:#2a2340;color:#c6b6ef}.st-encaminhado-ao-setor{background:#1d2e33;color:#a7c7cd}}
-.chip-bloqueio{background:var(--bloqueio);color:#fff}
-@media (prefers-color-scheme:dark){.chip-bloqueio{color:#2a0d0b}}
-.atrasado{color:var(--bloqueio);font-weight:600}
-
-/* Listas de chamados */
-.lista{display:flex;flex-direction:column;gap:8px}
-.linha-ch{display:grid;grid-template-columns:150px minmax(0,1fr) auto;gap:4px 16px;align-items:center;text-align:left;width:100%;
-  background:var(--superficie);border:1px solid var(--linha);border-left:4px solid var(--linha);border-radius:var(--raio-p);padding:12px 16px;cursor:pointer}
-.linha-ch:hover{border-color:var(--acento)}
-.linha-ch.bloq{border-left-color:var(--bloqueio)}
-.linha-ch .tit{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.linha-ch .meta{grid-column:2 / 4;font-size:.84rem;color:var(--suave);display:flex;gap:14px;flex-wrap:wrap}
-@media (max-width:640px){.linha-ch{grid-template-columns:1fr auto}.linha-ch .tit{grid-column:1 / 3;white-space:normal}.linha-ch .meta{grid-column:1 / 3}}
-.contadores{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px}
-.contadores div{background:var(--superficie);border:1px solid var(--linha);border-radius:var(--raio-p);padding:8px 14px;font-size:.9rem}
-.contadores b{font-family:var(--fonte-titulo);font-size:1.3rem;margin-right:6px}
-.contadores .alerta b{color:var(--bloqueio)}
-
-/* Detalhe */
-.voltar{margin-bottom:14px;display:inline-block}
-.det-cabeca{display:flex;flex-direction:column;gap:4px;margin-bottom:18px}
-.det-cabeca .protocolo{font-size:1.05rem}
-.det-cabeca h1{margin:0}
-.det-cabeca .chips{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
-.trilha{list-style:none;margin:0 0 22px;padding:0;display:grid;grid-template-columns:repeat(5,1fr);counter-reset:passo}
-.trilha li{position:relative;padding:22px 6px 0 0;font-size:.84rem;color:var(--suave);counter-increment:passo}
-.trilha li::before{content:"";position:absolute;top:7px;left:0;right:0;height:3px;background:var(--linha)}
-.trilha li::after{content:counter(passo);position:absolute;top:-2px;left:0;width:20px;height:20px;border-radius:50%;background:var(--papel);border:2px solid var(--linha);
-  font-size:.7rem;font-weight:700;display:grid;place-items:center;color:var(--suave)}
-.trilha li.feito::before,.trilha li.atual::before{background:var(--marca)}
-.trilha li.feito::after{background:var(--marca);border-color:var(--marca);color:var(--marca-texto);content:"✓"}
-.trilha li.atual{color:var(--texto);font-weight:700}
-.trilha li.atual::after{border-color:var(--acento);background:var(--superficie);color:var(--acento);box-shadow:0 0 0 4px var(--acento-claro)}
-.trilha li em{display:block;font-style:normal;font-weight:600;color:var(--atencao);margin-top:2px}
-.trilha-cancelada{padding:10px 14px;border:1px dashed var(--linha);border-radius:var(--raio-p);color:var(--suave);margin-bottom:22px}
-@media (max-width:640px){.trilha li span{font-size:.72rem}}
-.det-grade{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:20px;align-items:start}
-@media (max-width:900px){.det-grade{grid-template-columns:1fr}}
-.painel-acao{border:2px solid var(--acento);background:var(--acento-claro);border-radius:var(--raio-g);padding:18px;margin-bottom:16px}
-.painel-acao.atencao{border-color:var(--atencao);background:var(--atencao-claro)}
-.painel-acao .botoes{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px}
-dl.dados{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;margin:0;font-size:.92rem}
-dl.dados dt{color:var(--suave)}
-dl.dados dd{margin:0;font-weight:500;overflow-wrap:anywhere}
-.conversa{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px}
-.msg{background:var(--superficie);border:1px solid var(--linha);border-radius:var(--raio-g);padding:12px 14px;max-width:88%}
-.msg.do-cliente{align-self:flex-end;background:var(--acento-claro);border-color:transparent}
-.msg.interna{background:var(--nota);border-color:var(--nota-borda);max-width:100%}
-.msg .quem-msg{font-size:.82rem;color:var(--suave);margin-bottom:4px;display:flex;justify-content:space-between;gap:10px}
-.msg .corpo{white-space:pre-wrap;overflow-wrap:anywhere}
-.ev{font-size:.84rem;color:var(--suave);display:flex;gap:10px;align-items:baseline;padding:2px 4px}
-.ev::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--linha);flex:none;transform:translateY(-1px)}
-.ev.status::before{background:var(--acento)}
-.anexos{list-style:none;margin:0;padding:0}
-.anexos li{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--linha);font-size:.92rem}
-.anexos li:first-child{border-top:0}
-.compor{margin-top:16px}
-.compor .seletor{display:flex;gap:4px;margin-bottom:10px}
-.compor .seletor button{border:1px solid var(--linha);background:var(--superficie);padding:6px 12px;border-radius:var(--raio-p);cursor:pointer;font-weight:600;color:var(--suave)}
-.compor .seletor button[aria-pressed="true"]{border-color:var(--acento);color:var(--texto)}
-.compor.modo-nota textarea{background:var(--nota);border-color:var(--nota-borda)}
-.lista-arquivos{font-size:.86rem;color:var(--suave);margin:6px 0 0;padding-left:18px}
-.lateral > .bloco{padding:16px}
-.lateral h3{margin-bottom:10px}
-
-/* Chat */
-.chat{padding:0;overflow:hidden}
-.chat-topo{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:14px 18px;border-bottom:1px solid var(--linha)}
-.chat-topo h2{margin:0}
-.presenca{font-size:.84rem;color:var(--suave);display:flex;gap:12px}
-.presenca span::before{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--linha);margin-right:6px}
-.presenca span.on::before{background:var(--ok)}
-.chat-abas{display:flex;gap:4px;padding:8px 14px 0;border-bottom:1px solid var(--linha)}
-.chat-abas button{background:none;border:0;border-bottom:3px solid transparent;padding:8px 12px;cursor:pointer;font-weight:600;color:var(--suave)}
-.chat-abas button[aria-selected="true"]{color:var(--texto);border-bottom-color:var(--acento)}
-.chat-abas button[data-canal="equipe"][aria-selected="true"]{border-bottom-color:var(--nota-borda)}
-.badge{display:inline-block;min-width:20px;padding:0 6px;border-radius:999px;background:var(--bloqueio);color:#fff;font-size:.74rem;line-height:20px;text-align:center;margin-left:6px}
-.chat-feed{height:min(62vh,580px);overflow-y:auto;padding:16px 18px;display:flex;flex-direction:column;gap:8px;background:var(--papel)}
-.chat-feed.interno{background:color-mix(in srgb,var(--nota) 45%,var(--papel))}
-.dia{align-self:center;font-size:.76rem;color:var(--suave);background:var(--superficie);border:1px solid var(--linha);border-radius:999px;padding:1px 10px;margin:6px 0}
-.bolha{max-width:78%;padding:9px 13px;border-radius:14px 14px 14px 4px;background:var(--superficie);border:1px solid var(--linha);align-self:flex-start}
-.bolha.meu{align-self:flex-end;border-radius:14px 14px 4px 14px;background:var(--acento);border-color:var(--acento);color:#fff}
-@media (prefers-color-scheme:dark){.bolha.meu{color:#08201f}}
-.chat-feed.interno .bolha{background:var(--nota);border-color:var(--nota-borda);color:var(--texto)}
-.chat-feed.interno .bolha.meu{background:var(--superficie);border-color:var(--nota-borda)}
-.bolha .autor{font-size:.76rem;font-weight:700;opacity:.8;margin-bottom:2px}
-.bolha .corpo{white-space:pre-wrap;overflow-wrap:anywhere}
-.bolha .hora{font-size:.7rem;opacity:.7;text-align:right;margin-top:3px}
-.bolha.abertura{max-width:100%;align-self:stretch;background:var(--superficie);color:var(--texto);border-color:var(--linha);border-left:4px solid var(--tinta);border-radius:var(--raio-p)}
-.bolha .arquivo{display:flex;align-items:center;gap:10px}
-.bolha .arquivo button{background:transparent;border:1px solid currentColor;color:inherit;border-radius:var(--raio-p);padding:3px 10px;cursor:pointer;font-weight:600;font-size:.82rem}
-.evento{align-self:center;font-size:.8rem;color:var(--suave);text-align:center;max-width:90%}
-.evento b{color:var(--texto);font-weight:600}
-.digitando{min-height:22px;padding:2px 18px;font-size:.8rem;color:var(--suave);font-style:italic;background:var(--papel)}
-.chat-compor{display:flex;gap:8px;align-items:flex-end;padding:12px 14px;border-top:1px solid var(--linha);background:var(--superficie)}
-.chat-compor textarea{min-height:44px;max-height:160px;resize:none;flex:1;border-radius:20px;padding:11px 16px}
-.clip{display:grid;place-items:center;width:44px;height:44px;border-radius:50%;border:1px solid var(--linha);cursor:pointer;flex:none;margin:0;font-size:1.1rem}
-.clip input{display:none}
-.chat-compor .btn{height:44px;border-radius:22px}
-.chat-fechado{padding:14px 18px;border-top:1px solid var(--linha);color:var(--suave);font-size:.9rem;background:var(--superficie)}
-.chip-nova{background:var(--bloqueio);color:#fff;margin-right:6px}
-
-.acessos{border:2px solid var(--atencao);background:var(--atencao-claro);border-radius:var(--raio-g);padding:16px 18px;margin-bottom:18px}
-.acessos table{background:var(--superficie)}
-.acessos code{font-size:1rem;font-weight:700;letter-spacing:.04em}
-.senha-campo{position:relative}
-.senha-campo input{padding-right:84px}
-.senha-campo button{position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:0;color:var(--acento);font-weight:600;cursor:pointer}
-
-.sub-abas{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px}
-.sub-abas button{border:1px solid var(--linha);background:var(--superficie);padding:7px 14px;border-radius:999px;cursor:pointer;font-weight:600;color:var(--suave)}
-.sub-abas button[aria-pressed="true"]{border-color:var(--acento);background:var(--acento-claro);color:var(--texto)}
-.cfg-linha{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.2fr);gap:4px 18px;padding:12px 0;border-top:1px solid var(--linha);align-items:start}
-.cfg-linha:first-of-type{border-top:0}
-.cfg-linha label{margin:0}
-.cfg-linha .ajuda{font-weight:400;color:var(--suave);font-size:.84rem}
-@media (max-width:640px){.cfg-linha{grid-template-columns:1fr}}
-.feriado{display:grid;grid-template-columns:170px 1fr auto;gap:8px;margin-bottom:8px;align-items:center}
-@media (max-width:640px){.feriado{grid-template-columns:1fr auto}.feriado input[type=text]{grid-column:1 / 3}}
-.ajuda-grade{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:20px;align-items:start}
-@media (max-width:860px){.ajuda-grade{grid-template-columns:1fr}}
-.guia details{border:1px solid var(--linha);border-radius:var(--raio-p);background:var(--superficie);margin-bottom:10px}
-.guia summary{cursor:pointer;padding:12px 16px;font-weight:700;font-family:var(--fonte-titulo);font-stretch:88%;font-size:1.05rem}
-.guia details[open] summary{border-bottom:1px solid var(--linha)}
-.guia .conteudo{padding:12px 20px 6px;max-width:75ch}
-.guia ol,.guia ul{padding-left:22px;margin:0 0 12px}
-.guia li{margin-bottom:6px}
-.guia .para{font-size:.8rem;color:var(--suave);font-weight:500;margin-left:8px;font-family:var(--fonte)}
-
-.rodape{text-align:center;padding:22px 20px 32px;color:var(--suave);font-size:.92rem;border-top:1px solid var(--linha);margin-top:20px}
-.rodape a{color:var(--texto);font-weight:700;text-decoration:none;white-space:nowrap}
-.rodape a:hover{text-decoration:underline}
-.rodape p{margin:2px 0}
-@media print{.rodape{display:none}}
-
-/* Entrada */
-body.modo-login .topo,body.modo-login #rodape{display:none}
-body.modo-login main{max-width:none;padding:0}
-.login{min-height:100vh;min-height:100dvh;display:grid;grid-template-columns:minmax(0,1.1fr) minmax(360px,1fr)}
-.login-marca{background:#0f2a0d;color:#dcebd8;padding:48px clamp(28px,5vw,72px);display:flex;flex-direction:column;justify-content:space-between;gap:40px;position:relative;overflow:hidden}
-.login-marca::after{content:"";position:absolute;right:-12%;top:-18%;width:62%;aspect-ratio:1;border-radius:50%;border:2px solid rgba(65,166,57,.22);pointer-events:none}
-.login-marca::before{content:"";position:absolute;right:-4%;top:-8%;width:40%;aspect-ratio:1;border-radius:50%;border:2px solid rgba(65,166,57,.14);pointer-events:none}
-.login-empresa{font-family:var(--fonte-titulo);font-weight:600;font-size:1.05rem;letter-spacing:.02em;color:#a9d3a2;position:relative}
-.login-sigla{font-family:var(--fonte-titulo);font-stretch:75%;font-weight:800;font-size:clamp(6.5rem,15vw,12.5rem);line-height:.8;color:#41a639;letter-spacing:-.03em;margin:0}
-.login-frase{font-size:clamp(1.1rem,1.6vw,1.35rem);line-height:1.4;max-width:24ch;margin:18px 0 0;color:#e9f3e6}
-.login-trilha{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(5,1fr);position:relative;max-width:560px}
-.login-trilha::before{content:"";position:absolute;left:9px;right:calc(20% - 9px);top:8px;height:2px;background:rgba(220,235,216,.18)}
-.login-trilha::after{content:"";position:absolute;left:9px;right:calc(20% - 9px);top:8px;height:2px;background:#41a639;transform-origin:left;transform:scaleX(1)}
-.login-trilha li{position:relative;padding-top:28px;font-size:.8rem;color:#a9c9a4;line-height:1.25;padding-right:6px}
-.login-trilha li::before{content:"";position:absolute;left:0;top:0;width:18px;height:18px;border-radius:50%;background:#41a639;box-shadow:0 0 0 4px #0f2a0d;z-index:1}
-.login-trilha li:last-child::before{content:"✓";color:#0f2a0d;font-size:.72rem;font-weight:800;display:grid;place-items:center}
-.login-trilha li:last-child{color:#e9f3e6;font-weight:600}
-@media (prefers-reduced-motion:no-preference){
-  .login-trilha::after{animation:trilha 1.8s cubic-bezier(.6,0,.2,1) .3s both}
-  .login-trilha li::before{animation:ponto .35s ease-out both}
-  .login-trilha li:nth-child(1)::before{animation-delay:.25s}.login-trilha li:nth-child(2)::before{animation-delay:.65s}
-  .login-trilha li:nth-child(3)::before{animation-delay:1.05s}.login-trilha li:nth-child(4)::before{animation-delay:1.45s}
-  .login-trilha li:nth-child(5)::before{animation-delay:1.85s}
-  @keyframes trilha{from{transform:scaleX(0)}to{transform:scaleX(1)}}
-  @keyframes ponto{from{background:#294827;transform:scale(.6)}to{background:#41a639;transform:scale(1)}}
-}
-.login-lado{display:flex;flex-direction:column;justify-content:center;padding:48px clamp(24px,5vw,72px) 28px;background:var(--papel)}
-.login-form{width:100%;max-width:380px;margin:auto auto 0}
-.login-form h1{font-size:2.4rem;font-stretch:80%;margin-bottom:6px}
-.login-form .sub{color:var(--suave);margin-bottom:28px}
-.login-form input{padding:12px 14px;font-size:1rem;background:var(--superficie)}
-.login-form .btn-primario{width:100%;padding:13px 16px;font-size:1rem;margin-top:6px}
-.login-form .esqueci{display:block;margin:16px auto 0;text-align:center}
-.login-ligar{margin:auto auto 0;padding-top:40px;text-align:center;color:var(--suave);font-size:.9rem;max-width:380px}
-.login-ligar a{color:var(--texto);font-weight:700;text-decoration:none;white-space:nowrap}
-.login-ligar p{margin:2px 0}
-@media (max-width:820px){
-  .login{grid-template-columns:1fr}
-  .login-marca{padding:28px 24px 30px;gap:22px}
-  .login-sigla{font-size:5.5rem}
-  .login-frase{margin-top:10px}
-  .login-lado{padding:32px 24px 24px}
-  .login-form{margin:0 auto}
-}
-
-.pular{position:absolute;left:12px;top:-60px;z-index:30;background:var(--superficie);color:var(--texto);padding:8px 14px;border-radius:var(--raio-p);font-weight:600}
-.pular:focus{top:12px}
-main:focus{outline:none}
-html{-webkit-tap-highlight-color:rgba(65,166,57,.18)}
-button,a,label,select,summary,input[type=checkbox],input[type=radio]{touch-action:manipulation}
-h1,h2,h3{text-wrap:balance}
-p,.corpo{text-wrap:pretty}
-select{background-color:var(--superficie);color:var(--texto)}
-a:hover{text-decoration-thickness:2px}
-.btn-link:hover{text-decoration:underline}
-.login{padding-bottom:env(safe-area-inset-bottom)}
-.topo{padding-top:max(10px,env(safe-area-inset-top))}
-
-.topo{flex-wrap:wrap;row-gap:8px}
-.marca{min-width:0;flex:1 1 220px}
-.marca span{overflow-wrap:anywhere}
-.quem{flex-wrap:wrap;justify-content:flex-end;min-width:0}
-.quem-id{font-size:.82rem;opacity:.85;overflow-wrap:anywhere;max-width:280px;text-align:right}
-@media (max-width:640px){
-  .topo{padding:10px 14px}
-  .marca{flex-basis:100%}
-  .marca span{font-size:.92rem}
-  .quem{width:100%;justify-content:flex-start;gap:6px}
-  .quem-id{flex-basis:100%;text-align:left;max-width:none}
-  .quem .btn{padding:6px 10px;font-size:.85rem}
-  nav.abas{padding:0 8px;overflow-x:auto;flex-wrap:nowrap;scrollbar-width:none}
-  nav.abas button{white-space:nowrap;padding:11px 10px}
-  main{padding:18px 14px 48px}
-}
-
-/* Estrelas */
-.estrelas{display:flex;gap:6px}
-.estrelas button{width:44px;height:44px;border-radius:50%;border:1px solid var(--linha);background:var(--superficie);cursor:pointer;font-weight:700;font-size:1rem}
-.estrelas button[aria-pressed="true"]{background:var(--acento);border-color:var(--acento);color:#fff}
-
-/* Tabelas e relatório */
-.rolagem{overflow-x:auto}
-table{width:100%;border-collapse:collapse;font-size:.9rem}
-th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--linha);vertical-align:top}
-th{font-weight:600;color:var(--suave);font-size:.82rem}
-td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
-.pagina{background:var(--superficie);border:1px solid var(--linha);border-radius:var(--raio-g);padding:24px;margin-bottom:18px}
-.pagina > header{display:flex;justify-content:space-between;align-items:baseline;gap:10px;border-bottom:2px solid var(--tinta);padding-bottom:8px;margin-bottom:16px}
-.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:20px}
-.kpis div{border:1px solid var(--linha);border-radius:var(--raio-p);padding:10px 12px}
-.kpis b{display:block;font-family:var(--fonte-titulo);font-size:1.6rem;font-stretch:85%}
-.kpis span{font-size:.82rem;color:var(--suave)}
-.barras{display:grid;grid-template-columns:auto 1fr auto;gap:6px 12px;align-items:center;font-size:.88rem}
-.barras .trilho{height:12px;background:var(--papel);border-radius:3px;overflow:hidden}
-.barras .trilho i{display:block;height:100%;background:var(--marca)}
-.duas-col{display:grid;grid-template-columns:1fr 1fr;gap:24px}
-@media (max-width:760px){.duas-col{grid-template-columns:1fr}}
-@media print{
-  .topo,nav.abas,.nao-imprimir,#aviso{display:none!important}
-  body{background:#fff;color:#000}
-  main{padding:0;max-width:none}
-  .pagina{border:0;padding:0;break-before:page}
-  .pagina:first-of-type{break-before:auto}
-}
-
-/* Avisos */
-#aviso{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);max-width:min(560px,92vw);padding:12px 18px;border-radius:var(--raio-p);
-  background:var(--texto);color:var(--papel);font-weight:500;box-shadow:0 6px 24px rgba(0,0,0,.25);display:none;z-index:20}
-#aviso.erro{background:var(--bloqueio);color:#fff}
-#aviso.ok{background:var(--ok);color:#fff}
-.carregando{padding:60px 0;text-align:center;color:var(--suave)}
-@media (prefers-reduced-motion:no-preference){.painel-acao{animation:surgir .25s ease-out}@keyframes surgir{from{opacity:0;transform:translateY(4px)}to{opacity:1}}}
-</style>
-</head>
-<body>
-<a class="pular" href="#app">Ir para o conteúdo</a>
-<header class="topo">
-  <div class="marca"><b>SAC</b><span id="nome-projeto" hidden></span></div>
-  <div class="quem" id="quem"></div>
-</header>
-<nav class="abas" id="abas" hidden></nav>
-<main id="app" tabindex="-1"><div class="carregando">Carregando…</div></main>
-<footer class="rodape" id="rodape" hidden></footer>
-<div id="aviso" role="status" aria-live="polite"></div>
-
-<script>
 // ───────── Estado e utilitários ─────────
 const S = { token: null, base: null, usuario: null, publico: null, params: {}, cache: {}, filtroCliente: {}, filtroFila: { status: 'ativos' } };
 const app = document.getElementById('app');
@@ -396,29 +17,56 @@ const chipStatus = s => `<span class="chip st-${slug(s)}">${esc(s)}</span>`;
 const num = (v, suf) => (v === null || v === undefined) ? '—' : Number(v).toLocaleString('pt-BR') + (suf || '');
 const tamanho = b => { b = Number(b) || 0; return b > 1048576 ? (b / 1048576).toFixed(1).replace('.', ',') + ' MB' : Math.max(1, Math.round(b / 1024)) + ' KB'; };
 
+// Login pelo Authelia/LLDAP (AUTH_MODE=oidc no backend): sem senhas no SAC, acesso pelos grupos sac_*
+const sso = () => !!(S.auth && S.auth.modo === 'oidc');
+// Mesmo nome que o backend usa (grupoLldap_ no Codigo.gs): "Suporte de campo" -> sac_suporte_de_campo
+const grupoLldap = nome => 'sac_' + String(nome || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
+  .replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 40);
+
 const guarda = {
   get() { try { return sessionStorage.getItem('sac_token') || S.token; } catch (e) { return S.token; } },
   set(t) { S.token = t; try { sessionStorage.setItem('sac_token', t); } catch (e) { } },
-  del() { S.token = null; try { sessionStorage.removeItem('sac_token'); } catch (e) { } }
+  del() { S.token = null; try { sessionStorage.removeItem('sac_token'); sessionStorage.removeItem('sac_tela'); } catch (e) { } }
 };
 
+function lembrarTela(tela, valor) {
+  if (!S.usuario) return;
+  try { sessionStorage.setItem('sac_tela', JSON.stringify({ login: S.usuario.login, tela, valor })); } catch (e) { }
+}
+
+function restaurarTela() {
+  let rota;
+  try { rota = JSON.parse(sessionStorage.getItem('sac_tela')); } catch (e) { return false; }
+  if (!rota || rota.login !== S.usuario.login) return false;
+  if (rota.tela === 'detalhe' && typeof rota.valor === 'string') { telaDetalhe(rota.valor); return true; }
+  if (S.usuario.tipo === 'cliente') {
+    if (rota.tela === 'cadastro') { telaMeuCadastro(); return true; }
+    if (rota.tela === 'novo') { telaNovoChamado(false); return true; }
+    return false;
+  }
+  const permitidas = ['fila', 'ajuda'];
+  if (S.usuario.n1) permitidas.push('telefone', 'relatorios');
+  if (S.usuario.admin) permitidas.push('projetos', 'equipe', 'config');
+  if (!permitidas.includes(rota.tela)) return false;
+  const sub = ['situacao', 'geral', 'categorias', 'perfis', 'modulos', 'manuais', 'feriados'].includes(rota.valor) ? rota.valor : undefined;
+  telaEquipe(rota.tela, sub);
+  return true;
+}
+
+// Chama uma função do backend (ver js/api.js) e trata sessão expirada e troca de senha obrigatória
 function api(fn, ...args) {
-  return new Promise((ok, falha) => {
-    google.script.run
-      .withSuccessHandler(ok)
-      .withFailureHandler(e => {
-        const msg = String((e && e.message) || e).replace(/^(Exception|Error|Erro):\s*/i, '');
-        if (msg.indexOf('TROCAR_SENHA') >= 0) {
-          telaTrocarSenha(true);
-          return falha(new Error('SESSAO_EXPIRADA'));
-        }
-        if (msg.indexOf('SESSAO_EXPIRADA') >= 0) {
-          guarda.del(); S.usuario = null;
-          telaLogin('Sua sessão terminou. Entre de novo para continuar.');
-          return falha(new Error('SESSAO_EXPIRADA'));
-        }
-        falha(new Error(msg));
-      })[fn](...args);
+  return SacApi.chamar(fn, args).catch(e => {
+    const msg = String((e && e.message) || e).replace(/^(Exception|Error|Erro):\s*/i, '');
+    if (msg.indexOf('TROCAR_SENHA') >= 0) {
+      telaTrocarSenha(true);
+      throw new Error('SESSAO_EXPIRADA');
+    }
+    if (msg.indexOf('SESSAO_EXPIRADA') >= 0) {
+      guarda.del(); S.usuario = null;
+      telaLogin('Sua sessão terminou. Entre de novo para continuar.');
+      throw new Error('SESSAO_EXPIRADA');
+    }
+    throw new Error(msg);
   });
 }
 
@@ -509,12 +157,87 @@ document.addEventListener('click', e => {
 // ───────── Topo e navegação ─────────
 // Cada troca de tela ganha um número; respostas atrasadas de uma tela antiga são descartadas.
 S.nav = 0;
-function novaTela() { return ++S.nav; }
+function novaTela() { while (editorAberto) fecharEditor(true); return ++S.nav; }
+
+let editorAberto = null;
+let editorSequencia = 0;
+function fecharEditor(forcar) {
+  const editor = editorAberto;
+  if (!editor) return;
+  if (!forcar && $('button:disabled', editor.conteudo)) return;
+  editorAberto = editor.anterior;
+  editor.dialogo.close();
+  editor.conteudo.hidden = true;
+  if (editor.marcador.isConnected) editor.marcador.replaceWith(editor.conteudo);
+  editor.dialogo.remove();
+  app.hidden = editor.appOculto;
+  editor.bloqueados.forEach(([el, anterior]) => { el.inert = anterior; });
+  if (!editorAberto) document.body.classList.remove('editor-aberto');
+  if (!forcar && editor.origem && editor.origem.isConnected) editor.origem.focus();
+}
+
+function abrirEditor(conteudo, titulo, aninhado) {
+  if (!aninhado) while (editorAberto) fecharEditor(true);
+  const anterior = editorAberto;
+  const origem = document.activeElement;
+  const marcador = document.createComment('formulário em edição');
+  conteudo.before(marcador);
+  const formulario = $('form', conteudo) || conteudo;
+  const botoes = Array.from(formulario.children).filter(el => el.matches('button.btn'));
+  if (botoes.length) {
+    const acoes = document.createElement('div');
+    acoes.className = 'editor-acoes';
+    botoes.forEach(el => acoes.appendChild(el));
+    formulario.appendChild(acoes);
+  }
+  const dialogo = document.createElement('dialog');
+  dialogo.className = 'editor-modal';
+  const tituloId = anterior ? 'editor-titulo-' + (++editorSequencia) : 'editor-titulo';
+  dialogo.setAttribute('aria-labelledby', tituloId);
+  dialogo.innerHTML = `<header class="editor-cabeca"><h2 id="${tituloId}"></h2><button type="button" class="btn" data-editor-fechar aria-label="Fechar formulário">Fechar</button></header><div class="editor-conteudo"></div>`;
+  $('h2', dialogo).textContent = titulo;
+  conteudo.hidden = false;
+  $('.editor-conteudo', dialogo).appendChild(conteudo);
+  const bloqueados = $$('.topo, #abas, #rodape').map(el => [el, !!el.inert]);
+  editorAberto = { dialogo, conteudo, marcador, origem, bloqueados, appOculto: app.hidden, anterior };
+  app.hidden = true;
+  bloqueados.forEach(([el]) => { el.inert = true; });
+  document.body.appendChild(dialogo);
+  document.body.classList.add('editor-aberto');
+  $('[data-editor-fechar]', dialogo).onclick = () => fecharEditor();
+  dialogo.addEventListener('cancel', e => { e.preventDefault(); fecharEditor(); });
+  dialogo.showModal();
+  const primeiro = $('input:not([type=hidden]):not([disabled]), select:not([disabled]), textarea:not([disabled])', conteudo);
+  if (primeiro) primeiro.focus();
+}
+
+function confirmarExclusao(nome, detalhe) {
+  return confirm(`Excluir ${nome}?\n\n${detalhe || 'Confirme para continuar com a exclusão.'}`);
+}
+
+function iconeInterface(nome) {
+  const desenhos = {
+    fila: '<rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8 9h8M8 13h8M8 17h4"/>',
+    telefone: '<path d="m7 3 3 5-3 3a14 14 0 0 0 6 6l3-3 5 3c-1 5-5 5-9 3A21 21 0 0 1 4 12C2 8 2 4 7 3Z"/>',
+    relatorios: '<path d="M4 4v16h16M8 15v-4M13 15V7M18 15v-6"/>',
+    projetos: '<path d="M3 7V5a2 2 0 0 1 2-2h5l3 3h6a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/>',
+    equipe: '<circle cx="9" cy="8" r="3"/><path d="M3 20v-2a6 6 0 0 1 12 0v2M16 5a3 3 0 0 1 0 6M18 15a5 5 0 0 1 3 5"/>',
+    config: '<path d="M4 6h16M4 12h16M4 18h16"/><circle cx="8" cy="6" r="2"/><circle cx="16" cy="12" r="2"/><circle cx="10" cy="18" r="2"/>',
+    ajuda: '<circle cx="12" cy="12" r="9"/><path d="M9 9a3 3 0 1 1 4 3c-1 .5-1 1-1 2M12 17h.01"/>',
+    senha: '<rect x="5" y="10" width="14" height="11" rx="3"/><path d="M8 10V7a4 4 0 0 1 8 0v3M12 14v3"/>',
+    sair: '<path d="M9 4H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h4M13 7l5 5-5 5M8 12h13"/>',
+    cadastro: '<circle cx="12" cy="8" r="4"/><path d="M4 21v-2a8 8 0 0 1 16 0v2"/>',
+    novo: '<path d="M12 5v14M5 12h14"/>'
+  };
+  return `<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${desenhos[nome] || desenhos.fila}</svg>`;
+}
 
 function topo() {
   novaTela();
   pararChat();
   document.body.classList.remove('modo-login');
+  document.body.classList.toggle('sac-interno', !!S.usuario);
+  document.body.classList.toggle('sac-equipe', !!S.usuario && S.usuario.tipo === 'equipe');
   const quem = $('#quem');
   const abas = $('#abas');
   $('#nome-projeto').hidden = !S.usuario;
@@ -523,19 +246,32 @@ function topo() {
   $('#nome-projeto').textContent = titulo;
   document.title = 'SAC · ' + titulo;
   const u = S.usuario;
-  quem.innerHTML = `<span class="quem-id" translate="no">${esc(u.tipo === 'cliente' ? 'Login ' + u.login : u.nome + ' · ' + u.perfil)}</span>
-    ${u.tipo === 'cliente' ? '<button class="btn btn-fantasma" id="btn-cadastro">Meu cadastro</button>' : ''}
-    <button class="btn btn-fantasma" id="btn-senha">Trocar senha</button>
-    <button class="btn btn-fantasma" id="btn-sair">Sair</button>`;
-  $('#btn-senha').onclick = () => telaTrocarSenha(false);
+  const iniciais = String(u.nome || u.projeto || 'SAC').trim().split(/\s+/).slice(0, 2).map(n => n.charAt(0)).join('').toUpperCase();
+  quem.innerHTML = `<span class="avatar" aria-hidden="true">${esc(iniciais)}</span><span class="quem-id" translate="no">${esc(u.tipo === 'cliente' ? 'Login ' + u.login : u.nome + ' · ' + u.perfil)}</span>
+    ${u.tipo === 'cliente' ? `<button class="btn btn-fantasma" id="btn-cadastro">${iconeInterface('cadastro')}Meu cadastro</button>` : ''}
+    ${sso() ? '' : `<button class="btn btn-fantasma" id="btn-senha">${iconeInterface('senha')}Trocar senha</button>`}
+    <button class="btn btn-fantasma" id="btn-sair">${iconeInterface('sair')}Sair</button>`;
+  if ($('#btn-senha')) $('#btn-senha').onclick = () => telaTrocarSenha(false);
   if ($('#btn-cadastro')) $('#btn-cadastro').onclick = () => telaMeuCadastro(false);
-  $('#btn-sair').onclick = async () => { try { await api('sair', S.token); } catch (e) { } guarda.del(); S.usuario = null; telaLogin(); };
+  $('#btn-sair').onclick = async () => {
+    try { await api('sair', S.token); } catch (e) { }
+    guarda.del(); S.usuario = null;
+    // Com o Authelia, sai também da conta Innomaker (senão o próximo "Entrar" seria automático)
+    if (sso() && S.auth.sair) { location.href = S.auth.sair; return; }
+    telaLogin();
+  };
   if (u.tipo === 'equipe') {
     const itens = [['fila', 'Fila de chamados']];
     if (u.n1) itens.push(['telefone', 'Abrir por telefone'], ['relatorios', 'Relatórios']);
     if (u.admin) itens.push(['projetos', 'Projetos'], ['equipe', 'Equipe'], ['config', 'Configurações']);
     itens.push(['ajuda', 'Ajuda e manuais']);
-    abas.innerHTML = itens.map(([k, t]) => `<button data-aba="${k}">${t}</button>`).join('');
+    const grupos = [
+      ['Atendimento', itens.filter(([k]) => ['fila', 'telefone', 'relatorios'].includes(k))],
+      ['Administração', itens.filter(([k]) => ['projetos', 'equipe', 'config'].includes(k))],
+      ['Ajuda', itens.filter(([k]) => k === 'ajuda')]
+    ];
+    abas.setAttribute('aria-label', 'Navegação principal');
+    abas.innerHTML = grupos.filter(([, links]) => links.length).map(([nome, links]) => `<div class="nav-grupo" role="group" aria-label="${nome}"><span class="nav-grupo-titulo">${nome}</span>${links.map(([k, t]) => `<button data-aba="${k}">${iconeInterface(k)}<span>${t}</span></button>`).join('')}</div>`).join('');
     abas.hidden = false;
     $$('button', abas).forEach(b => b.onclick = () => telaEquipe(b.dataset.aba));
   } else abas.hidden = true;
@@ -548,13 +284,6 @@ function listaManuais(manuais) {
     ${m.descricao ? `<div class="suave pequeno">${esc(m.descricao)}</div>` : ''}</li>`).join('')}</ul>`;
 }
 
-// ───────── Início ─────────
-google.script.url.getLocation(loc => {
-  const p = loc.parameter || {};
-  Object.keys(p).forEach(k => { S.params[k] = Array.isArray(p[k]) ? p[k][0] : p[k]; });
-  iniciarApp();
-});
-
 function montarRodape() {
   const pub = S.publico || {};
   const el = $('#rodape');
@@ -566,15 +295,28 @@ function montarRodape() {
 }
 
 async function iniciarApp() {
-  try { S.publico = await api('dadosPublicos'); }
+  try { [S.publico, S.auth] = await Promise.all([api('dadosPublicos'), SacApi.infoLogin()]); }
   catch (e) { app.innerHTML = `<div class="vazio">Não foi possível carregar o SAC: ${esc(e.message)}</div>`; return; }
   document.title = 'SAC';
   montarRodape();
   if (S.params.pesquisa && S.params.k) return telaPesquisaAvulsa(S.params.pesquisa, S.params.k);
+  // Volta do Authelia: o backend devolve a sessão em #sso=... (ou o motivo da recusa em #sso-erro=...)
+  const retorno = new URLSearchParams(location.hash.slice(1));
+  if (retorno.has('sso') || retorno.has('sso-erro')) {
+    history.replaceState(null, '', location.pathname + location.search);
+    if (retorno.get('sso')) guarda.set(retorno.get('sso'));
+    else return telaLogin(retorno.get('sso-erro') || 'Não foi possível entrar.');
+  }
   const t = guarda.get();
   if (t) {
     S.token = t;
-    try { await carregarSessao(); return home(); } catch (e) { if (S.trocandoSenha) return; guarda.del(); }
+    try { await carregarSessao(); return home(true); }
+    catch (e) {
+      if (S.trocandoSenha || e.message === 'SESSAO_EXPIRADA') return;
+      app.innerHTML = '<div class="vazio">Não foi possível recuperar sua sessão. <button class="btn" id="b-reconectar">Tentar novamente</button></div>';
+      $('#b-reconectar').onclick = iniciarApp;
+      return;
+    }
   }
   telaLogin();
 }
@@ -584,11 +326,12 @@ async function carregarSessao() {
   S.usuario = S.base.usuario;
 }
 
-function home() {
+function home(restaurar) {
   topo();
   const alvo = S.params.chamado;
   if (S.usuario.tipo === 'cliente' && S.usuario.cadastroIncompleto && (!S.usuario.email || !S.cadastroAdiado)) return telaMeuCadastro(true);
   if (alvo) { delete S.params.chamado; return telaDetalhe(alvo); }
+  if (restaurar && restaurarTela()) return;
   return S.usuario.tipo === 'cliente' ? telaCliente() : telaEquipe('fila');
 }
 
@@ -610,6 +353,11 @@ function ligarVerSenha() {
 function telaLogin(msg) {
   S.usuario = null; S.trocandoSenha = false; topo();
   document.body.classList.add('modo-login');
+  const entrarSso = () => { location.href = SacApi.urlEntrar(location.pathname + location.search); };
+  if (sso() && !msg) {
+    app.innerHTML = '<div class="carregando">Abrindo o login da Innomaker…</div>';
+    return entrarSso();
+  }
   const pub = S.publico || {};
   const dig = String(pub.telefone || '').replace(/\D/g, '');
   const tel = dig.length >= 10 && dig.length <= 11 ? '+55' + dig : dig;
@@ -624,7 +372,13 @@ function telaLogin(msg) {
       <ol class="login-trilha"><li>Aberto</li><li>Em triagem</li><li>Em atendimento</li><li>Resolvido</li><li>Fechado</li></ol>
     </section>
     <section class="login-lado">
-      <div class="login-form">
+      <div class="login-form">${sso() ? `
+        <div>
+          <h1>Entrar</h1>
+          <p class="sub">Use a sua conta Innomaker. O login acontece na página segura auth.innomaker.com.br.</p>
+          ${msg ? `<p class="atrasado">${esc(msg)}</p>` : ''}
+          <button type="button" class="btn btn-primario" id="b-entrar-sso">Entrar com a conta Innomaker</button>
+        </div>` : `
         <form id="f-login">
           <h1>Entrar</h1>
           <p class="sub">Use o login e a senha do seu projeto. No primeiro acesso, a senha é a que o administrador enviou.</p>
@@ -650,11 +404,12 @@ function telaLogin(msg) {
           <p class="sub" id="esqueci-msg"></p>
           <p class="suave pequeno">Entre com a senha temporária no lugar da senha: o sistema pede para você criar uma senha nova.</p>
           <button type="button" class="btn btn-primario" id="b-voltar-login2">Voltar para o login</button>
-        </div>
+        </div>`}
       </div>
       ${pub.telefone ? `<div class="login-ligar"><p>Prefere ligar? <a href="tel:${esc(tel)}">${esc(pub.telefone)}</a></p>${pub.rodape ? `<p>${esc(pub.rodape)}</p>` : ''}</div>` : ''}
     </section>
   </div>`;
+  if (sso()) { $('#b-entrar-sso').onclick = entrarSso; return; }
   ligarVerSenha();
   if (matchMedia('(pointer: fine)').matches) $('#login').focus();
   $('#f-login').onsubmit = async ev => {
@@ -716,6 +471,7 @@ function telaTrocarSenha(obrigatoria) {
 
 // ───────── Meu cadastro (cliente) ─────────
 async function telaMeuCadastro(primeiraVez) {
+  lembrarTela('cadastro');
   topo();
   const nav = novaTela();
   app.innerHTML = '<div class="carregando">Carregando seu cadastro…</div>';
@@ -742,7 +498,7 @@ async function telaMeuCadastro(primeiraVez) {
     </div>
     <div class="bloco">
       <h2>E-mail para os avisos</h2>
-      <p>${d.email ? `Os avisos e a senha temporária, se você esquecer a sua, vão para <b>${esc(d.email)}</b>.` : '<span class="atrasado">Obrigatório: cadastre o e-mail de quem usa este login.</span>'}</p>
+      <p>${d.email ? `${sso() ? 'Os avisos dos chamados vão' : 'Os avisos e a senha temporária, se você esquecer a sua, vão'} para <b>${esc(d.email)}</b>.` : '<span class="atrasado">Obrigatório: cadastre o e-mail de quem usa este login.</span>'}</p>
       <form id="f-email">
         <div class="campo"><label for="c-email">${d.email ? 'Novo e-mail' : 'Seu e-mail'}</label><input type="email" id="c-email" spellcheck="false" autocapitalize="none" autocomplete="email" required></div>
         <div class="campo" id="c-passo2" hidden><p class="suave" id="c-msg"></p>
@@ -751,11 +507,11 @@ async function telaMeuCadastro(primeiraVez) {
           <button class="btn btn-primario" id="b-email">Enviar código de confirmação</button>
           <button type="button" class="btn-link" id="b-email-outro" hidden>Usar outro e-mail</button>
         </div>
-        <p class="suave pequeno" style="margin-top:10px">Confirmamos o e-mail com um código para garantir que os avisos e a recuperação de senha cheguem no endereço certo.</p>
+        <p class="suave pequeno" style="margin-top:10px">Confirmamos o e-mail com um código para garantir que os avisos${sso() ? '' : ' e a recuperação de senha'} cheguem no endereço certo.</p>
       </form>
     </div>
     ${primeiraVez && d.email ? '<p style="margin-top:16px"><button class="btn" id="b-depois">Continuar para meus chamados</button></p>' : ''}
-    ${primeiraVez && !d.email ? '<p class="suave" style="margin-top:16px">Para continuar, confirme o e-mail de quem usa este login. É para ele que enviamos os avisos dos chamados e a senha temporária se você esquecer a sua.</p>' : ''}
+    ${primeiraVez && !d.email ? '<p class="suave" style="margin-top:16px">Para continuar, confirme o e-mail de quem usa este login. É para ele que enviamos os avisos dos chamados' + (sso() ? '' : ' e a senha temporária se você esquecer a sua') + '.</p>' : ''}
   </div>`;
   if ($('#b-voltar')) $('#b-voltar').onclick = telaCliente;
   if ($('#b-depois')) $('#b-depois').onclick = () => { S.cadastroAdiado = true; telaCliente(); };
@@ -795,6 +551,7 @@ async function telaMeuCadastro(primeiraVez) {
 
 // ───────── Cliente: meus chamados ─────────
 async function telaCliente() {
+  lembrarTela('cliente');
   topo();
   const nav = novaTela();
   app.innerHTML = '<div class="carregando">Carregando seus chamados…</div>';
@@ -805,6 +562,14 @@ async function telaCliente() {
   const pend = lista.filter(c => c.pesquisaPendente);
   const f = S.filtroCliente;
   app.innerHTML = `
+    <div class="cabeca-lista"><div><h1>Meus chamados</h1><p class="suave" style="margin:0">Acompanhe o atendimento e converse com a nossa equipe.</p></div>
+      <button class="btn btn-primario" id="b-novo">${iconeInterface('novo')}Abrir chamado</button></div>
+    <div class="contadores">
+      <div><b>${lista.filter(c => !FINAIS.includes(c.Status)).length}</b>em andamento</div>
+      <div><b>${lista.filter(c => c.Status === 'Aguardando cliente').length}</b>aguardando sua resposta</div>
+      <div><b>${lista.filter(c => c.Status === 'Resolvido').length}</b>soluções para conferir</div>
+      <div><b>${lista.filter(c => c.Status === 'Fechado').length}</b>finalizados</div>
+    </div>
     ${S.base.manuais.length ? `<details class="faixa-manuais"><summary>Manuais do sistema: consulte antes de abrir um chamado</summary>${listaManuais(S.base.manuais)}</details>` : ''}
     ${S.usuario.cadastroIncompleto ? `<div class="painel-acao atencao"><b>${S.usuario.email ? 'Diga como prefere ser chamado.' : 'Cadastre seu e-mail para receber os avisos dos chamados.'}</b>
       <button class="btn-link" id="b-completar">Completar meu cadastro</button></div>` : ''}
@@ -824,8 +589,6 @@ async function telaCliente() {
       </tbody></table></div>
       <p class="pequeno suave" style="margin:10px 0 0">Prazo de solução: ${S.base.prazoNormal} dias úteis, de segunda a sexta, das ${S.publico.horaInicio}h às ${S.publico.horaFim}h, sem contar feriados. Se o sistema estiver bloqueado, o chamado passa à frente da fila. Você recebe um e-mail a cada mudança de status.</p>
     </details>
-    <div class="cabeca-lista"><div><h1>Meus chamados</h1><p class="suave" style="margin:0">Atendimento por ordem de chegada, com prazo de ${S.base.prazoNormal} dias úteis.</p></div>
-      <button class="btn btn-primario" id="b-novo">Abrir chamado</button></div>
     <div class="filtros">
       <input type="search" id="f-busca" placeholder="Buscar por número ou palavra…" value="${esc(f.busca || '')}" aria-label="Buscar">
       <select id="f-status" aria-label="Status"><option value="">Todos os status</option>${S.base.status.map(s => `<option ${f.status === s ? 'selected' : ''}>${esc(s)}</option>`).join('')}</select>
@@ -866,6 +629,7 @@ function linhaChamado(c, equipe) {
 
 // ───────── Novo chamado (cliente ou N1 por telefone) ─────────
 async function telaNovoChamado(porTelefone) {
+  lembrarTela(porTelefone ? 'telefone' : 'novo');
   const nav = novaTela();
   let clientes = [];
   if (porTelefone) {
@@ -902,10 +666,12 @@ async function telaNovoChamado(porTelefone) {
         <div class="ajuda">Bloqueio é quando a operação para, por exemplo: não emite nota ou não fatura. Esses chamados passam à frente da fila.</div></div>
       ${campoArquivos('n-arquivos')}
       <button class="btn btn-primario" id="b-enviar">${porTelefone ? 'Registrar chamado' : 'Abrir chamado'}</button>
+      <button type="button" class="btn" id="b-cancelar-chamado">Cancelar</button>
       <span id="progresso" class="suave pequeno" style="margin-left:10px"></span>
     </form>
   </div>`;
   if ($('#b-voltar')) $('#b-voltar').onclick = telaCliente;
+  $('#b-cancelar-chamado').onclick = () => porTelefone ? telaEquipe('fila') : telaCliente();
   ligarArquivos('n-arquivos');
   const montarModulos = mods => {
     const tem = mods && mods.length;
@@ -952,6 +718,7 @@ function trilha(status) {
 }
 
 async function telaDetalhe(id) {
+  lembrarTela('detalhe', id);
   topo();
   const nav = novaTela();
   app.innerHTML = '<div class="carregando">Abrindo chamado…</div>';
@@ -1052,23 +819,36 @@ function painelN1(c, a, recarregar) {
   const lat = $('#lateral');
   const b = S.base;
   let html = '';
-  if (a.classificar) html += `<div class="bloco"><h3>Triagem</h3>
+  if (a.classificar) html += `<div class="bloco" data-editor-acao="Editar triagem"><h3>Triagem</h3>
     <div class="campo"><label for="c-cat">Categoria</label><select id="c-cat">${b.categorias.map(x => `<option ${x === c.Categoria ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select></div>
     ${(c.modulosProjeto || []).length ? `<div class="campo"><label for="c-mod">Módulo</label><select id="c-mod">${c.Modulo ? '' : '<option value="">Escolha…</option>'}${c.modulosProjeto.map(x => `<option ${x === c.Modulo ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select></div>` : ''}
     <div class="campo"><label for="c-pri">Prioridade</label><select id="c-pri">${['Normal', 'Bloqueio'].map(x => `<option ${x === c.Prioridade ? 'selected' : ''}>${x}</option>`).join('')}</select>
       <div class="ajuda">O cliente respondeu "${esc(c.Bloqueio)}" para sistema bloqueado.</div></div>
     <button class="btn ${c.Status === 'Aberto' ? 'btn-primario' : ''}" id="b-classif">${c.Status === 'Aberto' ? 'Confirmar triagem' : 'Salvar triagem'}</button></div>`;
-  if (a.transicoes.length) html += `<div class="bloco"><h3>Mudar status</h3>
+  if (a.transicoes.length) html += `<div class="bloco" data-editor-acao="Alterar status"><h3>Mudar status</h3>
     <div class="campo"><label for="s-novo">Novo status</label><select id="s-novo">${a.transicoes.map(x => `<option>${esc(x)}</option>`).join('')}</select></div>
     <div class="campo"><label for="s-msg">Mensagem ao cliente</label><textarea id="s-msg"></textarea>
       <div class="ajuda">Obrigatória para Aguardando cliente (o que falta), Resolvido (o que foi feito) e Cancelado (motivo). Vai no e-mail.</div></div>
     <button class="btn btn-primario" id="b-status">Aplicar status</button></div>`;
-  if (a.encaminhar) html += `<div class="bloco"><h3>Encaminhar ao setor</h3>
+  if (a.encaminhar) html += `<div class="bloco" data-editor-acao="Encaminhar ao setor"><h3>Encaminhar ao setor</h3>
     <div class="campo"><label for="e-setor">Setor</label><select id="e-setor">${b.setores.map(x => `<option ${x === (c.Setor || setorSugerido(c.Categoria)) ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select>
       ${c.Setor ? '' : `<div class="ajuda">Sugestão pela categoria: ${esc(setorSugerido(c.Categoria))}.</div>`}</div>
     <div class="campo"><label for="e-nota">O que o setor precisa fazer</label><textarea id="e-nota"></textarea><div class="ajuda">Nota interna; o cliente não vê.</div></div>
     <button class="btn" id="b-encaminhar">Encaminhar</button></div>`;
   lat.insertAdjacentHTML('beforeend', html);
+  $$('[data-editor-acao]', lat).forEach(painel => {
+    const titulo = painel.dataset.editorAcao;
+    const bloco = document.createElement('div');
+    bloco.className = 'bloco';
+    bloco.innerHTML = `<h3>${esc($('h3', painel).textContent)}</h3><button type="button" class="btn" data-abrir-acao>${esc(titulo)}</button>`;
+    painel.before(bloco);
+    painel.hidden = true;
+    const cancelar = document.createElement('button');
+    cancelar.type = 'button'; cancelar.className = 'btn'; cancelar.textContent = 'Cancelar';
+    cancelar.onclick = () => fecharEditor();
+    painel.appendChild(cancelar);
+    $('[data-abrir-acao]', bloco).onclick = () => abrirEditor(painel, titulo);
+  });
   if ($('#b-classif')) $('#b-classif').onclick = async e => {
     const r = await acao(e.target, () => api('salvarClassificacao', S.token, c.Id, { categoria: $('#c-cat').value, modulo: $('#c-mod') ? $('#c-mod').value : '', prioridade: $('#c-pri').value }));
     if (r) { aviso(r, 'ok'); recarregar(); }
@@ -1251,10 +1031,11 @@ function agendarChat(ms) {
 
 async function cicloChat(ch) {
   if (S.chat !== ch) return;
+  if (editorAberto) { agendarChat(2000); return; }
   ch.rodando = true;
   try {
     const r = await api('chatAtualizar', S.token, ch.id, ch.total, ch.ver, ch.digitandoAte > Date.now() ? ch.canal : '');
-    if (S.chat !== ch) return;
+    if (S.chat !== ch || editorAberto) return;
     ch.ver = r.ver;
     desenharPresenca(r.online);
     const dig = r.digitando[ch.canal];
@@ -1353,11 +1134,12 @@ async function telaPesquisaAvulsa(id, chave) {
 }
 
 // ───────── Equipe ─────────
-function telaEquipe(aba) {
+function telaEquipe(aba, sub) {
+  lembrarTela(aba || 'fila');
   topo(); marcarAba(aba);
   if (aba === 'telefone') return telaNovoChamado(true);
   if (aba === 'projetos') return telaProjetos();
-  if (aba === 'config') return telaConfig('situacao');
+  if (aba === 'config') return telaConfig(sub || 'geral');
   if (aba === 'ajuda') return telaAjuda();
   if (aba === 'equipe') return telaEquipeAdmin();
   if (aba === 'relatorios') return telaRelatorios();
@@ -1411,11 +1193,16 @@ async function telaFila() {
 
 function caixaAcessos(linhas, titulo) {
   if (!linhas || !linhas.length) return '';
+  if (sso()) return `<div class="acessos" role="alert"><h3>${esc(titulo || 'Projetos criados')}</h3>
+    <p class="pequeno">Para o cliente entrar, crie no LLDAP o grupo abaixo e coloque nele os usuários do cliente.</p>
+    <div class="rolagem"><table><thead><tr><th>Projeto</th><th>Grupo no LLDAP</th></tr></thead><tbody>
+    ${linhas.map(l => `<tr><td>${esc(l.projeto || '')}</td><td><code translate="no">${esc(grupoLldap('projeto ' + l.login))}</code></td></tr>`).join('')}
+    </tbody></table></div></div>`;
   return `<div class="acessos" role="alert"><h3>${esc(titulo || 'Acessos criados')}</h3>
     <p class="pequeno">Anote ou envie agora: a senha temporária só aparece nesta tela. No primeiro login, a pessoa cria a própria senha.</p>
-    <div class="rolagem"><table><thead><tr><th>Acesso</th><th>Login</th><th>Senha temporária</th><th></th></tr></thead><tbody>
+    <div class="rolagem"><table><thead><tr><th>Acesso</th><th>Login</th><th>Senha temporária</th><th scope="col">Ações</th></tr></thead><tbody>
     ${linhas.map((l, i) => `<tr><td>${esc(l.projeto || l.nome || '')}</td><td><code translate="no">${esc(l.login)}</code></td><td><code translate="no">${esc(l.senha)}</code></td>
-      <td><button class="btn-link" data-copiar="${i}">Copiar</button>${l.emailEnviado ? ' <span class="suave pequeno">enviado por e-mail</span>' : ''}</td></tr>`).join('')}
+      <td><button class="btn-link" data-copiar="${i}">Copiar</button>${l.emailEnviado ? ' <span class="suave pequeno">envio por e-mail solicitado</span>' : l.emailSalvoLocal ? ' <span class="atrasado pequeno">E-mail salvo localmente; configure o SMTP para enviar.</span>' : ''}</td></tr>`).join('')}
     </tbody></table></div></div>`;
 }
 function ligarCopiar(linhas) {
@@ -1427,25 +1214,70 @@ function ligarCopiar(linhas) {
   });
 }
 
+function tabelaModulos() {
+  return `<div class="campo"><h3>Módulos do sistema</h3>
+    <div class="rolagem"><table><thead><tr><th scope="col">Módulo</th><th scope="col">Descrição</th><th scope="col">Ações</th></tr></thead><tbody data-modulos-linhas></tbody></table></div>
+    <div class="opcoes"><button type="button" class="btn" data-modulo-add>Adicionar módulo</button>
+    <button type="button" class="btn-link" data-modulo-padrao>Usar os módulos do ERP Linave</button></div>
+    <div class="ajuda">O nome aparece ao abrir um chamado. A descrição é opcional. Deixe as linhas vazias se o projeto não tiver módulos.</div></div>`;
+}
+
+function lerTabelaModulos(raiz) {
+  return $$('[data-modulos-linhas] tr', raiz).map(tr => ({
+    nome: $('[data-modulo-nome]', tr).value.trim(), descricao: $('[data-modulo-descricao]', tr).value.trim()
+  })).filter(m => m.nome || m.descricao);
+}
+
+function preencherTabelaModulos(raiz, modulos) {
+  const corpo = $('[data-modulos-linhas]', raiz);
+  corpo.innerHTML = '';
+  const adicionar = (m = {}) => {
+    if (typeof m === 'string') m = { nome: m };
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td><input type="text" data-modulo-nome maxlength="60" aria-label="Nome do módulo" placeholder="Nome do módulo" value="${esc(m.nome || '')}"></td>
+      <td><textarea data-modulo-descricao maxlength="1000" rows="2" aria-label="Descrição do módulo" placeholder="Descrição opcional">${esc(m.descricao || '')}</textarea></td>
+      <td><button type="button" class="btn-link" data-modulo-remover>Remover</button></td>`;
+    const nome = $('[data-modulo-nome]', tr);
+    const descricao = $('[data-modulo-descricao]', tr);
+    const validar = () => { nome.required = !!descricao.value.trim(); };
+    descricao.oninput = validar;
+    validar();
+    $('[data-modulo-remover]', tr).onclick = () => {
+      if (!confirmarExclusao(nome.value.trim() ? `o módulo "${nome.value.trim()}"` : 'esta linha de módulo', 'A remoção será aplicada quando você salvar o formulário.')) return;
+      tr.remove();
+      if (!corpo.children.length) adicionar();
+    };
+    corpo.appendChild(tr);
+    return tr;
+  };
+  (modulos && modulos.length ? modulos : [{}]).forEach(adicionar);
+  $('[data-modulo-add]', raiz).onclick = () => $('[data-modulo-nome]', adicionar()).focus();
+  $('[data-modulo-padrao]', raiz).onclick = () => {
+    const atuais = lerTabelaModulos(raiz);
+    const nomes = new Set(atuais.map(m => m.nome.toLowerCase()));
+    preencherTabelaModulos(raiz, atuais.concat(MODULOS_LINAVE.filter(nome => !nomes.has(nome.toLowerCase())).map(nome => ({ nome }))));
+  };
+}
+
 async function telaProjetos(acessos) {
   const nav = novaTela();
   app.innerHTML = '<div class="carregando">Carregando projetos…</div>';
-  let lista;
-  try { lista = await api('listarProjetos', S.token); } catch (e) { return; }
+  let lista, pastaGeral;
+  try { [lista, pastaGeral] = await Promise.all([api('listarProjetos', S.token), api('obterPastaGeralProjetos', S.token)]); } catch (e) { return; }
   if (nav !== S.nav) return;
   app.innerHTML = `
     <div class="cabeca-lista"><div><h1>Projetos</h1>
-      <p class="suave" style="margin:0">Cada pasta da pasta geral do Drive é um projeto, com um único login. Os anexos ficam em &lt;pasta do projeto&gt;/SC - &lt;projeto&gt;/&lt;chamado&gt;.</p></div>
-      <div class="opcoes"><button class="btn" id="b-sinc">Buscar pastas novas</button><button class="btn btn-primario" id="b-novo-pj">Criar projeto</button></div></div>
+      <p class="suave" style="margin:0">Gerencie os acessos, responsáveis e módulos de cada projeto.</p></div>
+      <div class="opcoes"><a class="btn" href="${esc(pastaGeral.url)}" target="_blank" rel="noopener">Ver pastas no Drive</a><button class="btn" id="b-sinc">Buscar pastas novas</button><button class="btn btn-primario" id="b-novo-pj">Criar projeto</button></div></div>
     ${caixaAcessos(acessos)}
     <div class="bloco" id="form-pj" hidden style="margin-bottom:18px"></div>
-    <div class="bloco rolagem">${lista.length ? `<table><thead><tr><th>Projeto</th><th>Login</th><th>Responsável</th><th>E-mail</th><th>Acesso</th><th>Último login</th><th></th></tr></thead>
+    <div class="bloco rolagem">${lista.length ? `<table><thead><tr><th>Projeto</th><th>${sso() ? 'Grupo no LLDAP' : 'Login'}</th><th>Responsável</th><th>E-mail</th><th>Acesso</th><th>Último login</th><th scope="col">Ações</th></tr></thead>
       <tbody>${lista.map((c, i) => `<tr>
         <td><b>${esc(c.Projeto)}</b><div class="suave pequeno">${esc(c.ProjetoId)}${c.modulos.length ? ', ' + c.modulos.length + ' módulos' : ', sem módulos'}${c.pastaUrl ? `, <a href="${esc(c.pastaUrl)}" target="_blank" rel="noopener">pasta</a>` : ''}</div></td>
-        <td><code translate="no">${esc(c.Login)}</code>${c.senhaTemporaria ? '<div class="suave pequeno">senha temporária</div>' : ''}</td>
+        <td>${sso() ? `<code translate="no">${esc(grupoLldap('projeto ' + c.Login))}</code>` : `<code translate="no">${esc(c.Login)}</code>${c.senhaTemporaria ? '<div class="suave pequeno">senha temporária</div>' : ''}`}</td>
         <td>${esc(c.Responsavel || '—')}${c.NomePreferido ? `<div class="suave pequeno">prefere "${esc(c.NomePreferido)}"</div>` : ''}</td><td>${c.Email ? esc(c.Email) : '<span class="atrasado">sem e-mail</span>'}</td>
         <td>${c.Ativo ? 'Ativo' : '<span class="suave">Desativado</span>'}</td><td>${c.UltimoAcesso ? fmtDH(c.UltimoAcesso) : '<span class="suave">nunca</span>'}</td>
-        <td style="white-space:nowrap"><button class="btn-link" data-editar="${i}">Editar</button> · <button class="btn-link" data-senha="${i}">Nova senha</button></td></tr>`).join('')}</tbody></table>`
+        <td class="acoes-linha"><button class="btn-link" data-editar="${i}">Editar</button>${sso() ? '' : `<button class="btn-link" data-senha="${i}">Nova senha</button>`}</td></tr>`).join('')}</tbody></table>`
       : '<div class="vazio">Nenhum projeto ainda. Use <b>Buscar pastas novas</b> para trazer as pastas da pasta geral ou <b>Criar projeto</b>.</div>'}</div>`;
   ligarCopiar(acessos || []);
 
@@ -1456,65 +1288,65 @@ async function telaProjetos(acessos) {
     telaProjetos(r);
   };
   const form = $('#form-pj');
-  $('#b-novo-pj').onclick = () => {
+  $('#b-novo-pj').onclick = async () => {
+    const pastas = await acao($('#b-novo-pj'), () => api('listarPastasProjetos', S.token));
+    if (!pastas || nav !== S.nav) return;
     form.hidden = false;
-    form.innerHTML = `<h2>Criar projeto</h2><p class="suave">Cria a pasta do projeto dentro da pasta geral e um login com senha temporária.</p>
+    form.innerHTML = `<h2>Criar projeto</h2><p class="suave">${sso() ? 'Selecione uma pasta da pasta geral para criar o projeto. O login define o nome do grupo no LLDAP (sac_projeto_login).' : 'Selecione uma pasta da pasta geral para criar o projeto e seu login com senha temporária.'}</p>
       <form id="f-pj" autocomplete="off"><div class="grade-2">
-        <div class="campo"><label for="pj-nome">Nome do projeto</label><input type="text" id="pj-nome" required></div>
+        <div class="campo"><label for="pj-nome">Nome do projeto</label><select id="pj-nome" required><option value="">Selecione uma pasta…</option>${pastas.map(p => `<option value="${esc(p.id)}" ${p.vinculada ? 'disabled' : ''}>${esc(p.nome)}${p.vinculada ? ' (já cadastrada)' : ''}</option>`).join('')}</select>
+        ${pastas.some(p => !p.vinculada) ? '' : '<div class="ajuda">Nenhuma pasta disponível. Adicione uma pasta à pasta geral e abra este formulário novamente, ou edite um projeto existente.</div>'}</div>
         <div class="campo"><label for="pj-login">Login</label><input type="text" id="pj-login" autocapitalize="none" spellcheck="false" autocomplete="off" placeholder="Gerado pelo nome se ficar vazio"></div>
         <div class="campo"><label for="pj-resp">Responsável (quem abre os chamados)</label><input type="text" id="pj-resp"></div>
         <div class="campo"><label for="pj-email">E-mail para os avisos</label><input type="email" id="pj-email" spellcheck="false" autocapitalize="none"></div>
         <div class="campo"><label for="pj-tel">Telefone</label><input type="tel" id="pj-tel"></div>
       </div>
-      <div class="campo"><label for="pj-mods">Módulos do sistema (um por linha)</label>
-          <textarea id="pj-mods" rows="4" placeholder="Deixe vazio se o projeto não tem módulos"></textarea>
-          <div class="ajuda">Aparecem para o cliente escolher ao abrir um chamado. <button type="button" class="btn-link" id="pj-linave">Usar os módulos do ERP Linave</button></div></div>
-      <label class="check" style="margin-bottom:14px"><input type="checkbox" id="pj-env" checked> Enviar login e senha temporária para o e-mail</label>
+      ${tabelaModulos()}
+      <p class="suave pequeno">${sso() ? 'Depois de criar, coloque os usuários do cliente no grupo do projeto no LLDAP.' : 'A senha temporária será exibida para você entregar ao cliente. Ele cria a própria senha no primeiro acesso. Depois, pode usar “Esqueci minha senha” com o e-mail cadastrado.'}</p>
       <button class="btn btn-primario" id="b-pj">Criar projeto</button> <button type="button" class="btn" id="b-pj-x">Cancelar</button></form>`;
     $('#pj-nome').focus();
-    $('#pj-linave').onclick = () => { $('#pj-mods').value = MODULOS_LINAVE.join('\n'); };
-    $('#pj-nome').oninput = () => {
-      if (/4\.2\.22|linave|servinave/i.test($('#pj-nome').value) && !$('#pj-mods').value.trim()) $('#pj-mods').value = MODULOS_LINAVE.join('\n');
+    preencherTabelaModulos(form, []);
+    $('#pj-nome').onchange = () => {
+      const pasta = pastas.find(p => p.id === $('#pj-nome').value);
+      if (pasta && /4\.2\.22|linave|servinave/i.test(pasta.nome) && !lerTabelaModulos(form).length) preencherTabelaModulos(form, MODULOS_LINAVE);
     };
-    $('#b-pj-x').onclick = () => { form.hidden = true; };
+    $('#b-pj-x').onclick = () => fecharEditor();
     $('#f-pj').onsubmit = async ev => {
       ev.preventDefault();
-      const d = { projeto: $('#pj-nome').value, login: $('#pj-login').value, responsavel: $('#pj-resp').value,
-        email: $('#pj-email').value, telefone: $('#pj-tel').value, enviarEmail: $('#pj-env').checked, modulos: $('#pj-mods').value };
+      const d = { pastaId: $('#pj-nome').value, login: $('#pj-login').value, responsavel: $('#pj-resp').value,
+        email: $('#pj-email').value, telefone: $('#pj-tel').value, modulos: lerTabelaModulos(form) };
       const r = await acao($('#b-pj'), () => api('criarProjeto', S.token, d), 'Projeto criado.');
       if (r) telaProjetos([r]);
     };
+    abrirEditor(form, 'Criar projeto');
   };
   $$('[data-editar]').forEach(b => b.onclick = () => {
     const c = lista[Number(b.dataset.editar)];
     form.hidden = false;
     form.innerHTML = `<h2>Editar ${esc(c.Projeto)}</h2>
       <form id="f-pj" autocomplete="off"><div class="grade-2">
-        <div class="campo"><label for="pj-login">Login</label><input type="text" id="pj-login" autocapitalize="none" spellcheck="false" autocomplete="off" value="${esc(c.Login)}" required></div>
+        <div class="campo"><label for="pj-login">Login</label><input type="text" id="pj-login" autocapitalize="none" spellcheck="false" autocomplete="off" value="${esc(c.Login)}" required>${sso() ? '<div class="ajuda">O login define o grupo no LLDAP. Se mudar, renomeie o grupo no LLDAP também.</div>' : ''}</div>
         <div class="campo"><label for="pj-resp">Responsável (quem abre os chamados)</label><input type="text" id="pj-resp" value="${esc(c.Responsavel || '')}"></div>
         <div class="campo"><label for="pj-email">E-mail para os avisos</label><input type="email" id="pj-email" spellcheck="false" autocapitalize="none" value="${esc(c.Email || '')}"></div>
         <div class="campo"><label for="pj-tel">Telefone</label><input type="tel" id="pj-tel" value="${esc(c.Telefone || '')}"></div>
       </div>
-      <div class="campo"><label for="pj-mods">Módulos do sistema (um por linha)</label>
-          <textarea id="pj-mods" rows="4" placeholder="Deixe vazio se o projeto não tem módulos">${esc((c.modulos || []).join('\n'))}</textarea>
-          <div class="ajuda">Aparecem para o cliente escolher ao abrir um chamado. <button type="button" class="btn-link" id="pj-linave">Usar os módulos do ERP Linave</button></div></div>
+      ${tabelaModulos()}
       <label class="check" style="margin-bottom:14px"><input type="checkbox" id="pj-ativo" ${c.Ativo ? 'checked' : ''}> Acesso ativo</label>
       <button class="btn btn-primario" id="b-pj">Salvar alterações</button> <button type="button" class="btn" id="b-pj-x">Cancelar</button></form>`;
-    form.scrollIntoView({ block: 'start' });
-    $('#pj-linave').onclick = () => { $('#pj-mods').value = MODULOS_LINAVE.join('\n'); };
-    $('#b-pj-x').onclick = () => { form.hidden = true; };
+    preencherTabelaModulos(form, c.modulosDetalhes || c.modulos);
+    $('#b-pj-x').onclick = () => fecharEditor();
     $('#f-pj').onsubmit = async ev => {
       ev.preventDefault();
       const d = { ProjetoId: c.ProjetoId, Login: $('#pj-login').value, Responsavel: $('#pj-resp').value,
-        Email: $('#pj-email').value, Telefone: $('#pj-tel').value, Ativo: $('#pj-ativo').checked, Modulos: $('#pj-mods').value };
+        Email: $('#pj-email').value, Telefone: $('#pj-tel').value, Ativo: $('#pj-ativo').checked, Modulos: lerTabelaModulos(form) };
       if (await acao($('#b-pj'), () => api('salvarProjeto', S.token, d), 'Projeto salvo.')) telaProjetos();
     };
+    abrirEditor(form, 'Editar projeto: ' + c.Projeto);
   });
   $$('[data-senha]').forEach(b => b.onclick = async () => {
     const c = lista[Number(b.dataset.senha)];
     if (!confirm(`Gerar uma nova senha temporária para ${c.Projeto}? A senha atual deixa de funcionar.`)) return;
-    const enviar = !!c.Email && confirm(`Enviar a nova senha para ${c.Email}?`);
-    const r = await acao(b, () => api('redefinirSenhaAcesso', S.token, 'projeto', c.ProjetoId, enviar));
+    const r = await acao(b, () => api('redefinirSenhaAcesso', S.token, 'projeto', c.ProjetoId));
     if (r) telaProjetos([Object.assign({ projeto: c.Projeto }, r)]);
   });
 }
@@ -1525,77 +1357,116 @@ async function telaEquipeAdmin(acessos) {
   let lista;
   try { lista = await api('listarEquipe', S.token); } catch (e) { return; }
   if (nav !== S.nav) return;
-  const perfis = ['Admin', 'N1'].concat(S.base.setores);
-  const opcoes = sel => perfis.map(p => `<option ${p === sel ? 'selected' : ''}>${p}</option>`).join('');
+  if (sso()) return equipeLldap(lista);
+  const opcoes = sel => ['Admin', 'N1'].concat(S.base.setores).map(p => `<option ${p === sel ? 'selected' : ''}>${esc(p)}</option>`).join('');
   app.innerHTML = `
     <div class="cabeca-lista"><div><h1>Equipe</h1>
-      <p class="suave" style="margin:0">Admin faz tudo, inclusive projetos e equipe. N1 atende e encaminha. Software, Comercial e Financeiro veem só o que foi encaminhado ao setor.</p></div></div>
+      <p class="suave" style="margin:0">Gerencie as pessoas, os perfis de atendimento e os acessos da equipe.</p></div><button class="btn btn-primario" id="b-nova-pessoa">Adicionar pessoa</button></div>
     ${caixaAcessos(acessos)}
-    <div class="bloco" style="margin-bottom:18px">
+    <div class="bloco" id="form-m" hidden>
       <h2 id="m-tit">Adicionar pessoa</h2>
       <form id="f-m" autocomplete="off"><input type="hidden" id="m-orig">
         <div class="grade-2">
           <div class="campo"><label for="m-nome">Nome</label><input type="text" id="m-nome" required></div>
           <div class="campo"><label for="m-email">E-mail</label><input type="email" id="m-email" spellcheck="false" autocapitalize="none" required></div>
-          <div class="campo"><label for="m-perfil">Perfil</label><select id="m-perfil">${opcoes('N1')}</select></div>
+          <div class="campo"><label for="m-perfil">Perfil</label><div class="campo-com-acao"><select id="m-perfil">${opcoes('N1')}</select><button type="button" class="btn" id="b-adicionar-perfil">Adicionar perfil</button></div></div>
           <div class="campo"><label for="m-login">Login</label><input type="text" id="m-login" autocapitalize="none" spellcheck="false" autocomplete="off" placeholder="Gerado pelo nome se ficar vazio"></div>
         </div>
         <div class="opcoes" style="margin-bottom:14px">
           <label class="check" style="border:0;padding:0" id="lb-m-ativo" hidden><input type="checkbox" id="m-ativo" checked> Acesso ativo</label>
-          <label class="check" style="border:0;padding:0" id="lb-m-env"><input type="checkbox" id="m-env" checked> Enviar login e senha temporária por e-mail</label>
+          <p class="suave pequeno" id="lb-m-env">O login e a senha temporária serão enviados para o e-mail informado. A pessoa cria uma nova senha no primeiro acesso.</p>
         </div>
-        <button class="btn btn-primario" id="b-m">Adicionar pessoa</button> <button type="button" class="btn" id="b-m-x" hidden>Cancelar edição</button>
+        <button class="btn btn-primario" id="b-m">Adicionar pessoa</button> <button type="button" class="btn" id="b-m-x">Cancelar</button>
       </form>
     </div>
-    <div class="bloco rolagem"><table><thead><tr><th>Nome</th><th>Login</th><th>Perfil</th><th>E-mail</th><th>Acesso</th><th>Último login</th><th></th></tr></thead>
+    <div id="form-novo-perfil" hidden></div>
+    <div class="bloco rolagem"><table><thead><tr><th>Nome</th><th>Login</th><th>Perfil</th><th>E-mail</th><th>Acesso</th><th>Último login</th><th scope="col">Ações</th></tr></thead>
       <tbody>${lista.map((m, i) => `<tr><td>${esc(m.Nome)}</td><td><code translate="no">${esc(m.Login)}</code>${m.senhaTemporaria ? '<div class="suave pequeno">senha temporária</div>' : ''}</td>
         <td>${esc(m.Perfil)}</td><td>${esc(m.Email)}</td><td>${m.Ativo ? 'Ativo' : '<span class="suave">Desativado</span>'}</td>
         <td>${m.UltimoAcesso ? fmtDH(m.UltimoAcesso) : '<span class="suave">nunca</span>'}</td>
-        <td style="white-space:nowrap"><button class="btn-link" data-editar="${i}">Editar</button> · <button class="btn-link" data-senha="${i}">Nova senha</button></td></tr>`).join('')}</tbody></table></div>`;
+        <td class="acoes-linha"><button class="btn-link" data-editar="${i}">Editar</button><button class="btn-link" data-senha="${i}">Nova senha</button></td></tr>`).join('')}</tbody></table></div>`;
   ligarCopiar(acessos || []);
+  $('#b-adicionar-perfil').onclick = () => formularioPerfil($('#form-novo-perfil'), resultado => {
+    S.base.setores = resultado.setores;
+    $('#m-perfil').innerHTML = opcoes(resultado.nome);
+  }, true);
+  $('#b-nova-pessoa').onclick = () => {
+    $('#f-m').reset();
+    $('#m-orig').value = '';
+    $('#m-tit').textContent = 'Adicionar pessoa';
+    $('#b-m').textContent = 'Adicionar pessoa';
+    $('#m-perfil').innerHTML = opcoes('N1');
+    $('#lb-m-ativo').hidden = true;
+    $('#lb-m-env').hidden = false;
+    abrirEditor($('#form-m'), 'Adicionar pessoa');
+  };
   $$('[data-editar]').forEach(b => b.onclick = () => {
     const m = lista[Number(b.dataset.editar)];
     $('#m-orig').value = m.Login; $('#m-nome').value = m.Nome; $('#m-email').value = m.Email;
     $('#m-perfil').innerHTML = opcoes(m.Perfil); $('#m-login').value = m.Login; $('#m-ativo').checked = !!m.Ativo;
     $('#m-tit').textContent = 'Editar ' + m.Nome; $('#b-m').textContent = 'Salvar alterações';
-    $('#lb-m-ativo').hidden = false; $('#lb-m-env').hidden = true; $('#b-m-x').hidden = false; $('#m-nome').focus();
+    $('#lb-m-ativo').hidden = false; $('#lb-m-env').hidden = true;
+    abrirEditor($('#form-m'), 'Editar pessoa: ' + m.Nome);
   });
-  $('#b-m-x').onclick = () => telaEquipeAdmin();
+  $('#b-m-x').onclick = () => fecharEditor();
   $('#f-m').onsubmit = async ev => {
     ev.preventDefault();
     const d = { loginOriginal: $('#m-orig').value, Nome: $('#m-nome').value, Email: $('#m-email').value, Perfil: $('#m-perfil').value,
-      Login: $('#m-login').value, Ativo: $('#m-ativo').checked, enviarEmail: $('#m-env').checked };
+      Login: $('#m-login').value, Ativo: $('#m-ativo').checked };
     const r = await acao($('#b-m'), () => api('salvarMembro', S.token, d), d.loginOriginal ? 'Alterações salvas.' : 'Pessoa adicionada.');
     if (r) telaEquipeAdmin(r === true ? null : [Object.assign({ nome: d.Nome }, r)]);
   };
   $$('[data-senha]').forEach(b => b.onclick = async () => {
     const m = lista[Number(b.dataset.senha)];
-    if (!confirm(`Gerar uma nova senha temporária para ${m.Nome}? A senha atual deixa de funcionar.`)) return;
-    const enviar = confirm(`Enviar a nova senha para ${m.Email}?`);
-    const r = await acao(b, () => api('redefinirSenhaAcesso', S.token, 'equipe', m.Login, enviar));
+    if (!confirm(`Gerar uma nova senha temporária para ${m.Nome} e enviar para ${m.Email}? A senha atual deixa de funcionar.`)) return;
+    const r = await acao(b, () => api('redefinirSenhaAcesso', S.token, 'equipe', m.Login));
     if (r) telaEquipeAdmin([Object.assign({ nome: m.Nome }, r)]);
+  });
+}
+
+// Com o Authelia, a equipe vem do LLDAP: o grupo define o perfil e o SAC só mostra quem já entrou
+function equipeLldap(lista) {
+  const perfis = ['Admin', 'N1'].concat(S.base.setores);
+  app.innerHTML = `
+    <div class="cabeca-lista"><div><h1>Equipe</h1>
+      <p class="suave" style="margin:0">As pessoas e os perfis vêm do LLDAP. Para dar ou tirar acesso, mude os grupos da pessoa no LLDAP.</p></div>
+      <button class="btn" id="b-adicionar-perfil">Adicionar perfil</button></div>
+    <div id="form-novo-perfil" hidden></div>
+    <div class="bloco rolagem"><h2>Grupos do LLDAP</h2>
+      <p class="suave pequeno">Coloque cada pessoa em um destes grupos. Quem estiver em mais de um fica com o perfil mais alto da lista.</p>
+      <table><thead><tr><th>Perfil no SAC</th><th>Grupo no LLDAP</th></tr></thead>
+      <tbody>${perfis.map(p => `<tr><td>${esc(p)}</td><td><code translate="no">${esc(grupoLldap(p))}</code></td></tr>`).join('')}</tbody></table>
+      <p class="suave pequeno">Clientes: grupo <code translate="no">sac_projeto_login</code> de cada projeto (veja em Projetos). A mudança vale no próximo login da pessoa.</p></div>
+    <div class="bloco rolagem"><h2>Quem já entrou</h2>${lista.length ? `<table><thead><tr><th>Nome</th><th>Usuário</th><th>Perfil</th><th>E-mail</th><th>Acesso</th><th>Último login</th></tr></thead>
+      <tbody>${lista.map(m => `<tr><td>${esc(m.Nome)}</td><td><code translate="no">${esc(m.Login)}</code></td><td>${esc(m.Perfil)}</td><td>${esc(m.Email)}</td>
+        <td>${m.Ativo ? 'Ativo' : '<span class="suave">Desativado</span>'}</td><td>${m.UltimoAcesso ? fmtDH(m.UltimoAcesso) : '<span class="suave">nunca</span>'}</td></tr>`).join('')}</tbody></table>`
+      : '<p class="suave">Ninguém da equipe entrou pelo LLDAP ainda.</p>'}</div>`;
+  $('#b-adicionar-perfil').onclick = () => formularioPerfil($('#form-novo-perfil'), resultado => {
+    S.base.setores = resultado.setores;
+    equipeLldap(lista);
   });
 }
 
 // ───────── Configurações (admin) ─────────
 async function telaConfig(aba) {
+  lembrarTela('config', aba);
   const nav = novaTela();
   app.innerHTML = '<div class="carregando">Carregando configurações…</div>';
   let c;
   try { c = await api('configuracoes', S.token); } catch (e) { return; }
   if (nav !== S.nav) return;
-  const nomes = { situacao: 'Situação', geral: 'Geral', categorias: 'Categorias', modulos: 'Módulos', manuais: 'Manuais', feriados: 'Feriados' };
+  const nomes = { geral: 'Geral', categorias: 'Categorias', perfis: 'Perfis', modulos: 'Módulos', manuais: 'Manuais', feriados: 'Feriados', situacao: 'Situação do sistema' };
   app.innerHTML = `
     <div class="cabeca-lista"><div><h1>Configurações</h1><p class="suave" style="margin:0">Tudo o que o SAC usa se ajusta aqui, sem abrir a planilha.</p></div></div>
     <div class="sub-abas">${Object.keys(nomes).map(k => `<button data-sub="${k}" aria-pressed="${k === aba}">${nomes[k]}</button>`).join('')}</div>
     <div id="cfg"></div>`;
   $$('[data-sub]').forEach(b => b.onclick = () => telaConfig(b.dataset.sub));
-  ({ situacao: cfgSituacao, geral: cfgGeral, categorias: cfgCategorias, modulos: cfgModulos, manuais: cfgManuais, feriados: cfgFeriados })[aba](c);
+  ({ situacao: cfgSituacao, geral: cfgGeral, categorias: cfgCategorias, perfis: cfgPerfis, modulos: cfgModulos, manuais: cfgManuais, feriados: cfgFeriados })[aba](c);
 }
 
 const ROTULOS_CONFIG = {
   NOME_SISTEMA: 'Nome do SAC', PASTA_GERAL_ID: 'Pasta geral dos projetos', TELEFONE: 'Telefone do rodapé (Prefere ligar?)', RODAPE_TEXTO: 'Texto do rodapé',
-  URL_APP: 'Endereço do app (URL /exec)', URL_PORTAL: 'Endereço bonito do SAC', HORA_INICIO: 'Início do atendimento', HORA_FIM: 'Fim do atendimento',
+  URL_APP: 'Endereço do SAC', URL_PORTAL: 'Endereço alternativo de acesso (opcional)', HORA_INICIO: 'Início do atendimento', HORA_FIM: 'Fim do atendimento',
   PRAZO_NORMAL_DIAS_UTEIS: 'Prazo da prioridade Normal (dias úteis)', PRAZO_BLOQUEIO_DIAS_UTEIS: 'Prazo da prioridade Bloqueio (dias úteis)',
   DIAS_UTEIS_AUTOFECHAMENTO: 'Dias úteis sem resposta até fechar', DIAS_UTEIS_REABERTURA: 'Dias úteis para o cliente reabrir',
   NOTIFICAR_EQUIPE: 'Avisar o N1 por e-mail', EMAIL_ADMIN: 'E-mail do administrador', BUSCAR_PROJETOS_NOVOS: 'Criar projetos das pastas novas a cada hora'
@@ -1658,41 +1529,84 @@ function cfgGeral(c) {
 }
 
 function cfgCategorias(c) {
-  $('#cfg').innerHTML = `<div class="bloco" style="max-width:640px"><h2>Categorias do chamado</h2>
-    <p class="suave">Uma por linha. O cliente escolhe uma delas ao abrir o chamado. Renomear não muda os chamados antigos.</p>
-    <form id="f-cat" autocomplete="off"><div class="campo"><textarea id="cat-txt" rows="8">${esc(c.categorias.join('\n'))}</textarea></div>
-    <button class="btn btn-primario" id="b-cat">Salvar categorias</button></form></div>`;
-  $('#f-cat').onsubmit = async ev => {
-    ev.preventDefault();
-    const r = await acao($('#b-cat'), () => api('salvarCategorias', S.token, $('#cat-txt').value));
-    if (r) { aviso(r, 'ok'); await carregarSessao(); }
-  };
-}
-
-function cfgModulos(c) {
-  $('#cfg').innerHTML = `<p class="suave">Módulos aparecem para o cliente escolher ao abrir um chamado. Projeto sem módulos não mostra esse campo. Um módulo por linha.</p>
-    ${c.projetos.length ? c.projetos.map((pj, i) => `<div class="bloco"><form data-mod="${i}">
-      <h3>${esc(pj.nome)} <span class="suave pequeno">${esc(pj.id)}</span></h3>
-      <div class="campo"><textarea rows="${Math.max(3, pj.modulos.length + 1)}" placeholder="Sem módulos" aria-label="Módulos de ${esc(pj.nome)}" autocomplete="off">${esc(pj.modulos.join('\n'))}</textarea></div>
-      <div class="opcoes" style="align-items:center"><button class="btn btn-primario">Salvar módulos</button>
-      <button type="button" class="btn-link" data-linave>Usar os módulos do ERP Linave</button></div></form></div>`).join('')
-      : '<div class="vazio">Nenhum projeto ainda. Crie ou busque projetos na aba Projetos.</div>'}`;
-  $$('[data-mod]').forEach(f => {
-    const pj = c.projetos[Number(f.dataset.mod)];
-    $('[data-linave]', f).onclick = () => { $('textarea', f).value = c.linave.join('\n'); };
-    f.onsubmit = async ev => {
+  $('#cfg').innerHTML = `<div class="cabeca-lista"><div><h2>Categorias do chamado</h2><p class="suave">Organize as opções que o cliente escolhe ao abrir um chamado.</p></div><button type="button" class="btn btn-primario" id="b-nova-categoria">Adicionar categoria</button></div>
+    <div id="form-categoria" hidden></div>
+    <div class="cadastro-cards">${c.categorias.map((nome, i) => `<article class="cadastro-card"><h3>${esc(nome)}</h3><div class="card-acoes"><button type="button" class="btn-link" data-categoria-editar="${i}">Editar</button><button type="button" class="btn-link acao-excluir" data-categoria-excluir="${i}">Excluir</button></div></article>`).join('')}</div>`;
+  const editar = indice => {
+    const anterior = indice === undefined ? null : c.categorias[indice];
+    const host = $('#form-categoria');
+    host.innerHTML = `<form id="f-categoria" autocomplete="off"><div class="campo"><label for="categoria-nome">Nome da categoria</label><input type="text" id="categoria-nome" maxlength="80" required value="${esc(anterior || '')}"><div class="ajuda">Alterar o nome não modifica os chamados antigos.</div></div><button class="btn btn-primario" id="b-salvar-categoria">Salvar categoria</button><button type="button" class="btn" id="b-cancelar-categoria">Cancelar</button></form>`;
+    $('#b-cancelar-categoria').onclick = () => fecharEditor();
+    $('#f-categoria').onsubmit = async ev => {
       ev.preventDefault();
-      const r = await acao($('button', f), () => api('salvarModulosProjeto', S.token, pj.id, $('textarea', f).value));
-      if (r) aviso(r, 'ok');
+      const r = await acao($('#b-salvar-categoria'), () => api('salvarCategoria', S.token, $('#categoria-nome').value, anterior));
+      if (r) { aviso(r, 'ok'); await carregarSessao(); telaConfig('categorias'); }
     };
+    abrirEditor(host, anterior === null ? 'Adicionar categoria' : 'Editar categoria');
+  };
+  $('#b-nova-categoria').onclick = () => editar();
+  $$('[data-categoria-editar]').forEach(b => b.onclick = () => editar(Number(b.dataset.categoriaEditar)));
+  $$('[data-categoria-excluir]').forEach(b => b.onclick = async () => {
+    const nome = c.categorias[Number(b.dataset.categoriaExcluir)];
+    if (!confirmarExclusao(`a categoria "${nome}"`, 'Ela deixará de estar disponível para novos chamados. Os chamados antigos serão preservados.')) return;
+    const r = await acao(b, () => api('excluirCategoria', S.token, nome));
+    if (r) { aviso(r, 'ok'); await carregarSessao(); telaConfig('categorias'); }
   });
 }
 
-function cfgManuais(c, editar) {
+function formularioPerfil(host, aoSalvar, aninhado) {
+  host.innerHTML = `<form id="f-perfil" autocomplete="off"><div class="campo"><label for="perfil-nome">Nome do perfil</label><input type="text" id="perfil-nome" maxlength="60" required placeholder="Ex.: Suporte de campo"><div class="ajuda">O novo perfil funciona como um setor: a pessoa vê os chamados encaminhados ao próprio setor. O acesso de administrador continua exclusivo do perfil Admin.</div></div><button class="btn btn-primario" id="b-salvar-perfil">Adicionar perfil</button><button type="button" class="btn" id="b-cancelar-perfil">Cancelar</button></form>`;
+  $('#b-cancelar-perfil').onclick = () => fecharEditor();
+  $('#f-perfil').onsubmit = async ev => {
+    ev.preventDefault();
+    const r = await acao($('#b-salvar-perfil'), () => api('criarPerfilEquipe', S.token, $('#perfil-nome').value));
+    if (r) { fecharEditor(); aoSalvar(r); aviso('Perfil adicionado.', 'ok'); }
+  };
+  abrirEditor(host, 'Adicionar perfil', aninhado);
+}
+
+function cfgPerfis(c) {
+  const perfis = c.perfis || [];
+  const descricao = nome => nome === 'Admin' ? 'Administra o SAC, a equipe e as configurações.' : nome === 'N1' ? 'Atende os clientes e encaminha chamados aos setores.' : 'Acessa os chamados encaminhados a este setor.';
+  $('#cfg').innerHTML = `<div class="cabeca-lista"><div><h2>Perfis da equipe</h2><p class="suave">Cadastre setores para organizar os acessos e o encaminhamento de chamados.</p></div><button type="button" class="btn btn-primario" id="b-novo-perfil">Adicionar perfil</button></div><div id="form-perfil" hidden></div>
+    <div class="cadastro-cards">${perfis.map((p, i) => `<article class="cadastro-card"><h3>${esc(p.nome)}</h3><p class="suave pequeno">${descricao(p.nome)}</p>${sso() ? `<p class="pequeno">Grupo no LLDAP: <code translate="no">${esc(grupoLldap(p.nome))}</code></p>` : ''}<div class="card-acoes">${p.fixo ? '<span class="suave pequeno">Perfil padrão</span>' : `<button type="button" class="btn-link acao-excluir" data-perfil-excluir="${i}">Excluir</button>`}</div></article>`).join('')}</div>`;
+  $('#b-novo-perfil').onclick = () => formularioPerfil($('#form-perfil'), r => { S.base.setores = r.setores; telaConfig('perfis'); });
+  $$('[data-perfil-excluir]').forEach(b => b.onclick = async () => {
+    const nome = perfis[Number(b.dataset.perfilExcluir)].nome;
+    if (!confirmarExclusao(`o perfil "${nome}"`, 'O perfil só pode ser excluído se não houver pessoas ou chamados em andamento usando-o.')) return;
+    const r = await acao(b, () => api('excluirPerfilEquipe', S.token, nome));
+    if (r) { aviso(r, 'ok'); await carregarSessao(); telaConfig('perfis'); }
+  });
+}
+
+function cfgModulos(c) {
+  $('#cfg').innerHTML = `<p class="suave">Módulos aparecem para o cliente escolher ao abrir um chamado. Edite um projeto para cadastrar nomes e descrições.</p>
+    <div id="form-modulos" hidden></div>
+    ${c.projetos.length ? `<div class="bloco rolagem"><table><thead><tr><th>Projeto</th><th>Módulos</th><th>Ações</th></tr></thead><tbody>
+      ${c.projetos.map((pj, i) => `<tr><td><b>${esc(pj.nome)}</b></td><td>${pj.modulos.length ? pj.modulos.length + ' cadastrados' : 'Sem módulos'}</td><td><button class="btn-link" data-editar-modulos="${i}">Editar módulos</button></td></tr>`).join('')}
+      </tbody></table></div>` : '<div class="vazio">Nenhum projeto ainda. Crie ou busque projetos na aba Projetos.</div>'}`;
+  $$('[data-editar-modulos]').forEach(b => b.onclick = () => {
+    const pj = c.projetos[Number(b.dataset.editarModulos)];
+    const painel = $('#form-modulos');
+    painel.innerHTML = `<form autocomplete="off">${tabelaModulos()}<button class="btn btn-primario" data-salvar-modulos>Salvar módulos</button><button type="button" class="btn" data-cancelar-modulos>Cancelar</button></form>`;
+    preencherTabelaModulos(painel, pj.modulosDetalhes || pj.modulos);
+    $('[data-cancelar-modulos]', painel).onclick = () => fecharEditor();
+    $('form', painel).onsubmit = async ev => {
+      ev.preventDefault();
+      const r = await acao($('[data-salvar-modulos]', painel), () => api('salvarModulosProjeto', S.token, pj.id, lerTabelaModulos(painel)));
+      if (r) { aviso(r, 'ok'); telaConfig('modulos'); }
+    };
+    abrirEditor(painel, 'Editar módulos: ' + pj.nome);
+  });
+}
+
+function cfgManuais(c, editar, novo) {
+  fecharEditor(true);
   const m = editar || null;
   const projetos = c.projetos;
   $('#cfg').innerHTML = `
-    <div class="bloco" style="margin-bottom:18px"><h2>${m ? 'Editar manual' : 'Adicionar manual'}</h2>
+    <div class="cabeca-lista"><div><h2>Manuais</h2><p class="suave">Organize os materiais de apoio para clientes e equipe.</p></div><button class="btn btn-primario" id="b-novo-manual">Adicionar manual</button></div>
+    <div class="bloco" id="form-man" hidden><h2>${m ? 'Editar manual' : 'Adicionar manual'}</h2>
       <form id="f-man" autocomplete="off"><div class="grade-2">
         <div class="campo"><label for="man-tit">Título</label><input type="text" id="man-tit" required value="${esc(m ? m.titulo : '')}"></div>
         <div class="campo"><label for="man-ordem">Ordem na lista</label><input type="text" inputmode="numeric" id="man-ordem" value="${esc(m ? m.ordem : 1)}"></div>
@@ -1708,17 +1622,18 @@ function cfgManuais(c, editar) {
           <div class="ajuda">${m && m.arquivo ? 'Já tem um arquivo enviado; escolha outro só se quiser trocar. ' : ''}O arquivo fica na pasta "SC - Manuais do SAC" e abre por link.</div></div>
       </div>
       <button class="btn btn-primario" id="b-man">${m ? 'Salvar alterações' : 'Adicionar manual'}</button>
-      ${m ? '<button type="button" class="btn" id="b-man-x">Cancelar</button>' : ''}</form></div>
-    <div class="bloco rolagem">${c.manuais.length ? `<table><thead><tr><th>Ordem</th><th>Título</th><th>Quem vê</th><th>Projeto</th><th></th></tr></thead><tbody>
+      <button type="button" class="btn" id="b-man-x">Cancelar</button></form></div>
+    <div class="bloco rolagem">${c.manuais.length ? `<table><thead><tr><th>Ordem</th><th>Título</th><th>Quem vê</th><th>Projeto</th><th scope="col">Ações</th></tr></thead><tbody>
       ${c.manuais.map((x, i) => `<tr><td class="num">${esc(x.ordem)}</td><td><a href="${esc(x.link)}" target="_blank" rel="noopener"><b>${esc(x.titulo)}</b></a>
         <div class="suave pequeno">${esc(x.descricao)}${x.arquivo ? ' (arquivo enviado)' : ''}</div></td><td>${esc(x.publico)}</td><td>${esc(x.projeto || 'Todos')}</td>
-        <td style="white-space:nowrap">${x.id ? `<button class="btn-link" data-ed="${i}">Editar</button> · <button class="btn-link" data-ex="${i}" style="color:var(--bloqueio)">Excluir</button>` : '<span class="suave pequeno">rode instalar() para editar</span>'}</td></tr>`).join('')}
-      </tbody></table>` : '<div class="vazio">Nenhum manual. Adicione o primeiro acima.</div>'}</div>`;
-  if ($('#b-man-x')) $('#b-man-x').onclick = () => cfgManuais(c);
-  $$('[data-ed]').forEach(b => b.onclick = () => { cfgManuais(c, c.manuais[Number(b.dataset.ed)]); window.scrollTo(0, 0); });
+        <td class="acoes-linha">${x.id ? `<button class="btn-link" data-ed="${i}">Editar</button><button class="btn-link" data-ex="${i}" style="color:var(--bloqueio)">Excluir</button>` : '<span class="suave pequeno">rode instalar() para editar</span>'}</td></tr>`).join('')}
+      </tbody></table>` : '<div class="vazio">Nenhum manual. Use Adicionar manual para cadastrar o primeiro.</div>'}</div>`;
+  $('#b-novo-manual').onclick = () => cfgManuais(c, null, true);
+  $('#b-man-x').onclick = () => fecharEditor();
+  $$('[data-ed]').forEach(b => b.onclick = () => cfgManuais(c, c.manuais[Number(b.dataset.ed)]));
   $$('[data-ex]').forEach(b => b.onclick = async () => {
     const x = c.manuais[Number(b.dataset.ex)];
-    if (!confirm(`Excluir o manual "${x.titulo}"?`)) return;
+    if (!confirmarExclusao(`o manual "${x.titulo}"`, 'O manual deixará de aparecer no portal. Confirme a exclusão.')) return;
     if (await acao(b, () => api('excluirManual', S.token, x.id), 'Manual excluído.')) telaConfig('manuais');
   });
   $('#f-man').onsubmit = async ev => {
@@ -1735,6 +1650,7 @@ function cfgManuais(c, editar) {
     await carregarSessao();
     telaConfig('manuais');
   };
+  if (m || novo) abrirEditor($('#form-man'), m ? 'Editar manual: ' + m.titulo : 'Adicionar manual');
 }
 
 function cfgFeriados(c) {
@@ -1750,7 +1666,11 @@ function cfgFeriados(c) {
       <select id="fer-ano" style="width:auto" aria-label="Ano dos feriados nacionais">${[0, 1, 2].map(i => { const a = new Date().getFullYear() + i; return `<option>${a}</option>`; }).join('')}</select>
       <button type="button" class="btn" id="b-fer-nac">Adicionar automaticamente</button></div>
     <p class="suave pequeno" style="margin-top:6px">Calcula Carnaval, Sexta-feira Santa e Corpus Christi pelo ano escolhido. Não duplica datas já cadastradas.</p></div>`;
-  const ligar = () => $$('[data-rem]').forEach(b => b.onclick = () => b.closest('.feriado').remove());
+  const ligar = () => $$('[data-rem]').forEach(b => b.onclick = () => {
+    const linha = b.closest('.feriado');
+    const nome = $('input[type=text]', linha).value || $('input[type=date]', linha).value || 'sem descrição';
+    if (confirmarExclusao(`o feriado "${nome}"`, 'A remoção será aplicada quando você salvar os feriados.')) linha.remove();
+  });
   ligar();
   $('#b-fer-nac').onclick = async e => {
     const m = await acao(e.target, () => api('adicionarFeriadosNacionais', S.token, $('#fer-ano').value));
@@ -1767,6 +1687,12 @@ function cfgFeriados(c) {
 
 // ───────── Ajuda e manuais da equipe ─────────
 const GUIA = [
+  { titulo: 'Acesso pelo Authelia e LLDAP', para: ['Admin'], so: 'oidc', html: `
+    <p>Todos entram com a conta Innomaker (auth.innomaker.com.br). O SAC não guarda senhas: as orientações de senha das outras seções não se aplicam.</p>
+    <ul><li><b>Equipe</b>: coloque a pessoa no grupo do perfil no LLDAP (<code>sac_admin</code>, <code>sac_n1</code>, <code>sac_software</code>...). No primeiro login, ela aparece em <b>Equipe</b>.</li>
+    <li><b>Clientes</b>: crie o grupo <code>sac_projeto_login</code> do projeto (veja em <b>Projetos</b>) e coloque nele os usuários do cliente. Todos entram no mesmo projeto.</li>
+    <li><b>Tirar o acesso</b>: remova a pessoa do grupo ou desative o usuário no LLDAP. Vale no próximo login; uma sessão já aberta dura no máximo 6 horas. Para cortar um cliente na hora, desative o projeto em <b>Projetos</b>.</li>
+    <li><b>Novo perfil</b>: em <b>Equipe &gt; Adicionar perfil</b>; o nome do grupo aparece na lista.</li></ul>` },
   { titulo: 'Primeiros passos do administrador', para: ['Admin'], html: `
     <ol><li>Entre com o login <b>admin</b> e a senha temporária que chegou no seu e-mail (ou no Registro de execução do Apps Script). O sistema pede para você criar uma senha nova.</li>
     <li>Abra <b>Configurações &gt; Geral</b> e confira o nome do SAC, o telefone, o horário de atendimento e o endereço do app (URL /exec). O endereço vai nos links dos e-mails.</li>
@@ -1777,7 +1703,7 @@ const GUIA = [
   { titulo: 'Projetos e logins', para: ['Admin'], html: `
     <p>Cada pasta da pasta geral do Drive é um projeto, com <b>um único login</b> para o cliente.</p>
     <ul><li><b>Buscar pastas novas</b> cria o projeto e o login das pastas que ainda não estão no SAC. Isso também acontece sozinho a cada hora, e você recebe os acessos por e-mail.</li>
-    <li><b>Criar projeto</b> cria a pasta na pasta geral e o login de uma vez. Marque "Enviar login e senha" para o responsável receber o acesso.</li>
+    <li><b>Criar projeto</b> vincula uma pasta da pasta geral e gera o login com senha temporária. Entregue esse acesso ao cliente; não há envio automático de senha por e-mail nos projetos.</li>
     <li><b>Nova senha</b> gera uma senha temporária. A anterior para de funcionar e a pessoa troca a senha no próximo login.</li>
     <li><b>Editar</b> muda login, responsável, e-mail, telefone, módulos e desativa o acesso. Projeto desativado não entra mais no portal.</li>
     <li>O cliente pode atualizar o próprio nome de preferência e o e-mail em <b>Meu cadastro</b>. O e-mail é confirmado por código.</li>
@@ -1818,7 +1744,7 @@ const GUIA = [
   { titulo: 'Relatórios', para: ['Admin', 'N1'], html: `
     <p>Escolha o período e clique em <b>Gerar</b>. A primeira página traz a visão geral; as seguintes trazem módulos, categorias, tempo médio de resolução, prazo cumprido por projeto e satisfação. <b>Imprimir ou salvar PDF</b> separa cada parte em uma página.</p>` },
   { titulo: 'Problemas comuns', para: ['Admin'], html: `
-    <ul><li><b>Primeira senha e recuperação</b>: a primeira senha de cada acesso é sempre enviada por você (em Projetos ou Equipe, botão <b>Nova senha</b> ou na criação, marcando enviar por e-mail). No primeiro acesso a pessoa cria a própria senha e cadastra o e-mail dela. Daí em diante, "Esqueci minha senha" pede só o e-mail: se ele estiver salvo num acesso já ativado, o sistema envia uma senha temporária (24 horas). Acessos que nunca entraram não têm recuperação. Você recebe um aviso de cada pedido no E-mail do administrador.</li>
+    <ul><li><b>Primeira senha e recuperação</b>: na Equipe, o cadastro e o botão <b>Nova senha</b> enviam o acesso para o e-mail da pessoa. Nos Projetos, a senha temporária aparece para o administrador entregar ao cliente. No primeiro acesso, a pessoa cria a própria senha e cadastra o e-mail. Depois, "Esqueci minha senha" envia uma senha temporária válida por 24 horas para o e-mail cadastrado. Acessos que nunca entraram não têm recuperação. O administrador recebe um aviso de cada pedido.</li>
     <li><b>Esqueci a senha do admin</b>: abra o Apps Script, selecione a função <code>redefinirSenhaAdmin</code> e clique em Executar. A senha nova aparece no Registro de execução e no seu e-mail.</li>
     <li><b>E-mails não chegam</b>: confira o spam. Contas Gmail gratuitas enviam cerca de 100 e-mails por dia pelo Apps Script; com Google Workspace o limite é maior.</li>
     <li><b>Mudei o código e nada mudou</b>: em Implantar &gt; Gerenciar implantações, edite e escolha Nova versão.</li>
@@ -1828,7 +1754,7 @@ const GUIA = [
 
 function telaAjuda() {
   const perfil = S.usuario.perfil;
-  const secoes = GUIA.filter(g => g.para.includes(perfil));
+  const secoes = GUIA.filter(g => g.para.includes(perfil) && (!g.so || (g.so === 'oidc') === sso()));
   app.innerHTML = `
     <div class="cabeca-lista"><div><h1>Ajuda e manuais</h1><p class="suave" style="margin:0">Como usar o SAC no seu perfil (${esc(perfil)}).</p></div></div>
     <div class="ajuda-grade">
@@ -1923,6 +1849,3 @@ function montarRelatorio(r) {
       ${s.comentarios.map(c => `<tr><td class="protocolo" translate="no">${esc(c.chamado)}</td><td>${esc(c.projeto)}</td><td class="num">${c.nota}</td><td>${esc(c.texto)}</td></tr>`).join('')}</tbody></table></div>` : '<p class="suave">Nenhum comentário no período.</p>'}
   </section>`;
 }
-</script>
-</body>
-</html>

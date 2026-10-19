@@ -1,0 +1,20 @@
+{
+  "name": "sac-backend",
+  "version": "2.0.0",
+  "private": true,
+  "description": "SAC Innomaker — API HTTP com as regras de negócio (Codigo.gs) e os dados em data/",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "instalar": "node src/cli.js instalar",
+    "senha-admin": "node src/cli.js redefinirSenhaAdmin",
+    "backup": "node src/cli.js backupDiario"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "nodemailer": "^6.9.14"
+  }
+}

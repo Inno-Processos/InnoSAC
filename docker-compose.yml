@@ -1,7 +1,16 @@
 services:
-  sac:
-    build: .
+  backend:
+    build: ./backend
+    env_file: ./backend/.env
+    environment:
+      DATA_DIR: /data
+      API_PORT: 3001
+    volumes: ["./data:/data"]
+    restart: unless-stopped
+  frontend:
+    build: ./frontend
+    environment:
+      API_URL: http://backend:3001
     ports: ["3000:3000"]
-    env_file: .env
-    volumes: ["./data:/app/data"]
+    depends_on: [backend]
     restart: unless-stopped

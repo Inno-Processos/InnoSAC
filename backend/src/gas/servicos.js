@@ -1,11 +1,11 @@
-// Emulação local dos serviços do Google Apps Script usados pelo Codigo.gs.
+// Emulação local dos serviços do Google Apps Script usados pelo regras/Codigo.gs.
 // Planilha -> data/planilha.json | Drive -> data/drive/ | Cache e Propriedades -> memória + data/props.json
 'use strict';
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
-const DATA = path.resolve(process.env.DATA_DIR || path.join(__dirname, '..', 'data'));
+const DATA = path.resolve(process.env.DATA_DIR || path.join(__dirname, '..', '..', '..', 'data'));
 const DRIVE = path.join(DATA, 'drive');
 const LIXEIRA = path.join(DATA, '.lixeira');
 const DB_FILE = path.join(DATA, 'planilha.json');
@@ -30,6 +30,39 @@ function salvar() {
   gravarJson(DB_FILE, db); gravarJson(PROPS_FILE, props); sujo = false;
 }
 const cache = new Map(); // chave -> { v, expira }
+const SESSIONS_FILE = path.join(DATA, 'sessoes.json');
+const sessoes = new Map(Object.entries(lerJson(SESSIONS_FILE, {})).filter(([, e]) =>
+  e && typeof e.v === 'string' && Number.isFinite(e.expira) && e.expira > Date.now()));
+const chaveSessao = k => crypto.createHash('sha256').update(k).digest('hex');
+function salvarSessoes() {
+  for (const [k, e] of sessoes) if (e.expira <= Date.now()) sessoes.delete(k);
+  gravarJson(SESSIONS_FILE, Object.fromEntries(sessoes));
+}
+function cacheGet(k) {
+  const persistente = k.startsWith('sess:');
+  const mapa = persistente ? sessoes : cache;
+  const chave = persistente ? chaveSessao(k) : k;
+  const e = mapa.get(chave);
+  if (!e) return null;
+  if (e.expira <= Date.now()) {
+    mapa.delete(chave);
+    if (persistente) salvarSessoes();
+    return null;
+  }
+  return e.v;
+}
+function cachePut(k, v, s) {
+  const e = { v: String(v), expira: Date.now() + Math.min(s || 600, 21600) * 1000 };
+  if (k.startsWith('sess:')) {
+    sessoes.set(chaveSessao(k), e);
+    salvarSessoes();
+  } else cache.set(k, e);
+}
+function cacheRemove(k) {
+  if (k.startsWith('sess:')) {
+    if (sessoes.delete(chaveSessao(k))) salvarSessoes();
+  } else cache.delete(k);
+}
 
 const MIMES = { pdf: 'application/pdf', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp',
   txt: 'text/plain', csv: 'text/csv', json: 'application/json', zip: 'application/zip', doc: 'application/msword',
@@ -61,8 +94,25 @@ function relDe(id) {
   return rel;
 }
 const seguroNome = n => String(n).replace(/[\\/:*?"<>|\x00-\x1f]/g, '_').slice(0, 180) || 'sem-nome';
+// Catálogo importado do Drive: mantém IDs e links reais, com armazenamento local.
+// Não contém credenciais e não realiza sincronização automática com o Google.
+const catalogoProjetos = lerJson(path.join(DATA, 'drive-projects.json'), null);
+if (catalogoProjetos && ALIASES[catalogoProjetos.folderId] === 'Projetos' && Array.isArray(catalogoProjetos.folders)) {
+  const caminhos = new Set();
+  catalogoProjetos.folders.forEach(pasta => {
+    if (!pasta || !/^[A-Za-z0-9_-]+$/.test(pasta.id) || typeof pasta.name !== 'string' || !pasta.name.trim() || /^SC - /i.test(pasta.name)) return;
+    const nome = seguroNome(pasta.name.trim());
+    if (nome === '.' || nome === '..') return;
+    const rel = path.join('Projetos', nome);
+    if (caminhos.has(rel.toLowerCase()) || Object.hasOwn(ALIASES, pasta.id)) throw new Error('Pasta duplicada no catálogo do Drive: ' + pasta.name);
+    caminhos.add(rel.toLowerCase());
+    ALIASES[pasta.id] = rel;
+    fs.mkdirSync(path.join(DRIVE, rel), { recursive: true });
+  });
+}
 const iterador = arr => { let i = 0; return { hasNext: () => i < arr.length, next: () => arr[i++] }; };
-const URL_BASE = () => (process.env.PUBLIC_URL || ('http://localhost:' + (process.env.PORT || 3000))).replace(/\/$/, '');
+// Endereço público do portal (o frontend): vai nos e-mails e nos links do Drive, que o frontend repassa ao backend
+const URL_BASE = () => (process.env.PUBLIC_URL || ('http://localhost:' + (process.env.WEB_PORT || 3000))).replace(/\/$/, '');
 
 function makeServices(ctx) {
   const CDate = require('vm').runInContext('Date', ctx);
@@ -176,9 +226,7 @@ function makeServices(ctx) {
       getProperties: () => Object.assign({}, props)
     }) },
     CacheService: { getScriptCache: () => ({
-      get: k => { const e = cache.get(k); if (!e) return null; if (e.expira < Date.now()) { cache.delete(k); return null; } return e.v; },
-      put: (k, v, s) => { cache.set(k, { v: String(v), expira: Date.now() + Math.min(s || 600, 21600) * 1000 }); },
-      remove: k => { cache.delete(k); }
+      get: cacheGet, put: cachePut, remove: cacheRemove
     }) },
     LockService: { getScriptLock: () => ({ waitLock: () => true, tryLock: () => true, releaseLock: () => {}, hasLock: () => true }) },
     Session: { getEffectiveUser: () => ({ getEmail: () => process.env.ADMIN_EMAIL || 'admin@localhost' }),

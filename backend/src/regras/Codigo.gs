@@ -28,7 +28,49 @@ const STATUS = {
 const LISTA_STATUS = Object.keys(STATUS).map(function (k) { return STATUS[k]; });
 const FINAIS = [STATUS.FECHADO, STATUS.CANCELADO];
 const SETORES = ['Software', 'Comercial', 'Financeiro'];
-const PERFIS_EQUIPE = ['Admin', 'N1'].concat(SETORES);
+
+function setores_() {
+  let extras = [];
+  try { extras = JSON.parse(PropertiesService.getScriptProperties().getProperty('PERFIS_PERSONALIZADOS') || '[]'); } catch (e) { }
+  return SETORES.concat(Array.isArray(extras) ? extras : []);
+}
+
+function perfisEquipe_() { return ['Admin', 'N1'].concat(setores_()); }
+
+function listarPerfisEquipe(token) {
+  exigirAdmin_(sessao_(token));
+  return perfisEquipe_().map(function (nome) {
+    return { nome: nome, fixo: ['Admin', 'N1'].concat(SETORES).indexOf(nome) >= 0 };
+  });
+}
+
+function criarPerfilEquipe(token, nome) {
+  const eu = exigirAdmin_(sessao_(token));
+  nome = limpa_(nome, 60);
+  if (!nome || /[\r\n]/.test(nome)) throw new Error('Informe um nome para o perfil.');
+  return comTrava_(function () {
+    if (perfisEquipe_().concat(['Cliente', 'Sistema', 'Equipe', 'Todos']).some(function (p) { return p.toLowerCase() === nome.toLowerCase(); })) throw new Error('Esse nome de perfil já existe ou é reservado.');
+    const extras = setores_().filter(function (p) { return SETORES.indexOf(p) < 0; });
+    extras.push(nome);
+    PropertiesService.getScriptProperties().setProperty('PERFIS_PERSONALIZADOS', JSON.stringify(extras));
+    auditar_(eu, 'Perfil criado', nome);
+    return { nome: nome, setores: setores_() };
+  });
+}
+
+function excluirPerfilEquipe(token, nome) {
+  const eu = exigirAdmin_(sessao_(token));
+  return comTrava_(function () {
+    if (['Admin', 'N1'].concat(SETORES).indexOf(nome) >= 0) throw new Error('Os perfis padrão não podem ser excluídos.');
+    if (setores_().indexOf(nome) < 0) throw new Error('Perfil não encontrado.');
+    if (ler_('Equipe').some(function (m) { return String(m.Perfil) === nome; })) throw new Error('Há pessoas usando esse perfil. Altere o perfil dessas pessoas antes de excluir.');
+    if (ler_('Chamados').some(function (c) { return String(c.Setor) === nome && FINAIS.indexOf(c.Status) < 0; })) throw new Error('Há chamados em andamento nesse setor. Encaminhe-os a outro setor antes de excluir.');
+    const extras = setores_().filter(function (p) { return SETORES.indexOf(p) < 0 && p !== nome; });
+    PropertiesService.getScriptProperties().setProperty('PERFIS_PERSONALIZADOS', JSON.stringify(extras));
+    auditar_(eu, 'Perfil excluído', nome);
+    return 'Perfil excluído.';
+  });
+}
 
 // O que o N1 pode fazer a partir de cada status (encaminhar tem função própria)
 const TRANSICOES_N1 = {
@@ -69,8 +111,8 @@ const CONFIG_PADRAO = [
   ['TELEFONE', '(21) 97317-6148', 'Telefone do rodapé "Prefere ligar?" e dos e-mails'],
   ['EMAIL_ADMIN', 'tecnico.innomaker@gmail.com', 'E-mail que recebe os pedidos de "Esqueci minha senha" e os avisos de projetos novos'],
   ['RODAPE_TEXTO', 'Segunda a sexta, das 9h às 16h, exceto feriados.', 'Texto que aparece no rodapé, abaixo do telefone (pode deixar vazio)'],
-  ['URL_APP', '', 'URL /exec do app web (cole depois de implantar)'],
-  ['URL_PORTAL', '', 'Opcional: endereço bonito onde o SAC está incorporado (Google Sites ou site da Innomaker). Vai nos botões "Entrar no SAC" dos e-mails'],
+  ['URL_APP', '', 'Endereço onde o SAC está acessível. Ex.: http://localhost:3000 ou https://sac.suaempresa.com.br. Usado nos links dos e-mails.'],
+  ['URL_PORTAL', '', 'Opcional: outro endereço de entrada para o SAC. Deixe vazio para usar o endereço principal.'],
   ['HORA_INICIO', 9, 'Início do atendimento (hora cheia)'],
   ['HORA_FIM', 16, 'Fim do atendimento (hora cheia)'],
   ['PRAZO_NORMAL_DIAS_UTEIS', 3, 'Prazo de solução da prioridade Normal'],
@@ -88,9 +130,32 @@ const CATEGORIAS_PADRAO = ['Dúvida', 'Erro (bug)', 'Melhoria', 'Treinamento', '
 const MODULOS_LINAVE = ['Financeiro', 'Suprimentos', 'Compras', 'Comercial', 'Cadastros', 'Relatórios', 'Outro'];
 function ehProjetoLinave_(nome) { return /4\.2\.22|linave|servinave/i.test(String(nome || '')); }
 
+function nomeProjetoCliente_(nome) {
+  const original = String(nome || '').trim();
+  return original.replace(/^\d+(?:\.\d+)*(?:\s*[-–—]\s*|\s+)/, '').trim() || original;
+}
+
 function modulosDoProjeto_(pj) {
-  if (!pj) return [];
-  return String(pj.Modulos || '').split(/[\n;,]+/).map(function (m) { return m.trim(); }).filter(String);
+  return detalhesModulos_(pj && pj.Modulos).map(function (m) { return m.nome; });
+}
+
+function detalhesModulos_(valor) {
+  let lista = valor;
+  if (!Array.isArray(lista)) {
+    const texto = String(valor || '');
+    try { lista = JSON.parse(texto); } catch (e) { lista = texto.split(/[\n;,]+/); }
+    if (!Array.isArray(lista)) lista = texto.split(/[\n;,]+/);
+  }
+  const vistos = Object.create(null);
+  return lista.map(function (m) {
+    const item = { nome: limpa_(typeof m === 'string' ? m : m && m.nome, 60), descricao: limpa_(m && m.descricao, 1000) };
+    if (item.descricao && !item.nome) throw new Error('Informe o nome de cada módulo que tem descrição.');
+    return item;
+  }).filter(function (m) {
+    if (!m.nome || vistos[m.nome.toLowerCase()]) return false;
+    vistos[m.nome.toLowerCase()] = true;
+    return true;
+  });
 }
 
 // ───────────────────────── Instalação ─────────────────────────
@@ -156,7 +221,7 @@ function instalar() {
     relatorioAcessos.forEach(function (l) { Logger.log(l[0] + ' → login: ' + l[1] + ' | senha temporária: ' + l[2]); });
     enviarEmail_(Session.getEffectiveUser().getEmail(), 'Logins criados no SAC', tabelaAcessos_(relatorioAcessos));
   }
-  Logger.log('Instalado. Agora implante como App da Web e cole a URL /exec em Config > URL_APP.');
+  Logger.log('Instalado. Confira o endereço do SAC em Configurações > Geral.');
 }
 
 /**
@@ -369,6 +434,10 @@ function urlApp_() {
   return String(cfg_().URL_APP || '') || ScriptApp.getService().getUrl() || '';
 }
 
+function urlHttpValida_(valor) {
+  return /^https?:\/\/[^\s\/?#@]+(?:[\/?#][^\s]*)?$/i.test(String(valor || ''));
+}
+
 function lista_(aba, campo, padrao) {
   try {
     const v = ler_(aba).map(function (l) { return String(l[campo] || '').trim(); }).filter(String);
@@ -535,12 +604,12 @@ function perfilDaConta_(conta) {
   if (!ativo_(l.Ativo)) return null;
   const login = normLogin_(l.Login);
   if (conta.aba === 'Equipe') {
-    const perfil = PERFIS_EQUIPE.filter(function (p) { return p.toLowerCase() === String(l.Perfil).trim().toLowerCase(); })[0];
+    const perfil = perfisEquipe_().filter(function (p) { return p.toLowerCase() === String(l.Perfil).trim().toLowerCase(); })[0];
     if (!perfil) return null;
     return { tipo: 'equipe', login: login, email: normEmail_(l.Email), nome: String(l.Nome || login), perfil: perfil };
   }
   return {
-    tipo: 'cliente', login: login, email: normEmail_(l.Email), nome: String(l.NomePreferido || l.Responsavel || l.Projeto), perfil: 'Cliente',
+    tipo: 'cliente', login: login, email: normEmail_(l.Email), nome: String(l.NomePreferido || l.Responsavel || nomeProjetoCliente_(l.Projeto)), perfil: 'Cliente',
     nomePreferido: String(l.NomePreferido || ''),
     projetoId: String(l.ProjetoId), projeto: String(l.Projeto)
   };
@@ -628,6 +697,61 @@ function trocarSenha(token, atual, nova) {
   return true;
 }
 
+// ───────────────────────── Login pelo Authelia/LLDAP (OIDC) ─────────────────────────
+// O backend confirma a identidade com o Authelia e chama entrarExterno_; o navegador não chega aqui.
+// Os grupos do LLDAP definem o acesso: sac_admin, sac_n1 e sac_<setor> para a equipe,
+// sac_projeto_<login do projeto> para os clientes. Quem não está em nenhum grupo sac_ não entra.
+
+function grupoLldap_(nome) { return 'sac_' + slugLogin_(nome).replace(/\./g, '_'); }
+
+function entrarExterno_(id) {
+  id = id || {};
+  const usuario = normLogin_(id.usuario);
+  if (!usuario) throw new Error('O Authelia não informou o usuário.');
+  const grupos = (Array.isArray(id.grupos) ? id.grupos : []).map(function (g) { return String(g).trim().toLowerCase(); });
+  const email = normEmail_(id.email);
+  const nome = limpa_(id.nome, 120) || usuario;
+  // Na ordem de perfisEquipe_: quem está em sac_admin e sac_n1 fica Admin
+  const perfil = perfisEquipe_().filter(function (p) { return grupos.indexOf(grupoLldap_(p)) >= 0; })[0];
+  const login = comTrava_(function () {
+    const membro = ler_('Equipe').filter(function (m) { return normLogin_(m.Login) === usuario; })[0];
+    if (perfil) {
+      const campos = { Nome: nome, Email: email, Perfil: perfil, Ativo: 'SIM', UltimoAcesso: new Date() };
+      if (membro) atualizar_('Equipe', membro._linha, campos);
+      else {
+        if (loginsUsados_()[usuario]) throw new Error('O usuário "' + usuario + '" do LLDAP tem o mesmo nome do login de um projeto. Renomeie um dos dois.');
+        inserir_('Equipe', Object.assign({ Login: usuario }, campos));
+      }
+      return usuario;
+    }
+    if (membro && ativo_(membro.Ativo)) { // saiu dos grupos da equipe: as sessões abertas param de valer
+      atualizar_('Equipe', membro._linha, { Ativo: 'NAO' });
+      esquecerPerfil_(usuario);
+    }
+    const projetos = ler_('Projetos').filter(function (pj) { return pj.Login && grupos.indexOf(grupoLldap_('projeto ' + pj.Login)) >= 0; });
+    if (projetos.length > 1) throw new Error('Seu usuário está em mais de um grupo de projeto (sac_projeto_...). Fale com o atendimento.');
+    if (!projetos.length) return null;
+    const pj = projetos[0];
+    // O primeiro acesso preenche o cadastro do projeto com os dados do LLDAP
+    const campos = { UltimoAcesso: new Date() };
+    if (!pj.Email && email) campos.Email = email;
+    if (!pj.NomePreferido && id.nome) campos.NomePreferido = limpa_(id.nome, 60);
+    atualizar_('Projetos', pj._linha, campos);
+    return normLogin_(pj.Login);
+  });
+  if (!login) {
+    auditar_({ login: usuario, perfil: '?' }, 'Login recusado', 'Authelia: nenhum grupo sac_ (' + grupos.join(', ') + ')');
+    throw new Error('Seu usuário "' + usuario + '" ainda não tem acesso ao SAC. Peça ao administrador para incluí-lo num grupo sac_ no LLDAP.');
+  }
+  esquecerPerfil_(login);
+  const p = identificar_(login);
+  if (!p) throw new Error('Este acesso está desativado. Fale com o atendimento.');
+  auditar_(p, 'Login', 'Authelia: ' + usuario);
+  const token = Utilities.getUuid() + Utilities.getUuid();
+  CacheService.getScriptCache().put('sess:' + token, JSON.stringify({ login: login, trocar: false, sso: usuario }), 21600);
+  return { token: token };
+}
+
 function emailAdmin_() {
   const e = normEmail_(cfg_().EMAIL_ADMIN);
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e) ? e : 'tecnico.innomaker@gmail.com';
@@ -678,8 +802,8 @@ function esqueciSenha(email) {
         atualizar_(c.aba, c.linha._linha, { SenhaTempHash: hashSenha_(senha, sal), SenhaTempSal: sal, SenhaTempExpira: new Date(Date.now() + 24 * 3600000) });
         enviados.push({
           login: normLogin_(c.linha.Login), senha: senha,
-          acesso: c.aba === 'Projetos' ? String(c.linha.Projeto) : 'Equipe (' + c.linha.Perfil + ')',
-          nome: c.aba === 'Projetos' ? String(c.linha.NomePreferido || c.linha.Responsavel || c.linha.Projeto) : String(c.linha.Nome)
+          acesso: c.aba === 'Projetos' ? nomeProjetoCliente_(c.linha.Projeto) : 'Equipe (' + c.linha.Perfil + ')',
+          nome: c.aba === 'Projetos' ? String(c.linha.NomePreferido || c.linha.Responsavel || nomeProjetoCliente_(c.linha.Projeto)) : String(c.linha.Nome)
         });
         CacheService.getScriptCache().remove('falhas:' + normLogin_(c.linha.Login));
       });
@@ -762,12 +886,12 @@ function iniciar(token) {
   const p = sessao_(token);
   const c = cfg_();
   return {
-    usuario: { tipo: p.tipo, nome: p.nome, login: p.login, email: p.email, perfil: p.perfil, projeto: p.projeto || '', admin: p.perfil === 'Admin', n1: ehN1_(p),
+    usuario: { tipo: p.tipo, nome: p.tipo === 'cliente' && p.nome === p.projeto ? nomeProjetoCliente_(p.nome) : p.nome, login: p.login, email: p.email, perfil: p.perfil, projeto: p.tipo === 'cliente' ? nomeProjetoCliente_(p.projeto) : (p.projeto || ''), admin: p.perfil === 'Admin', n1: ehN1_(p),
       cadastroIncompleto: p.tipo === 'cliente' && (!p.email || !p.nomePreferido) },
     categorias: lista_('Categorias', 'Categoria', CATEGORIAS_PADRAO),
     modulos: p.tipo === 'cliente' ? modulosDoProjeto_(projetoPorId_(p.projetoId)) : [],
     manuais: p.tipo === 'cliente' ? manuais_(projetoPorId_(p.projetoId), 'cliente') : manuais_(null, 'equipe'),
-    status: LISTA_STATUS, setores: SETORES,
+    status: LISTA_STATUS, setores: setores_(),
     prazoNormal: c.PRAZO_NORMAL_DIAS_UTEIS, diasAutoFechamento: c.DIAS_UTEIS_AUTOFECHAMENTO,
     diasReabertura: c.DIAS_UTEIS_REABERTURA
   };
@@ -916,11 +1040,15 @@ function detalheChamado(token, id) {
   marcarLido_(p, id, canais[0]);
   const anexos = ler_('Anexos')
     .filter(function (a) { return String(a.Chamado) === String(id) && (equipe || String(a.Visivel).toUpperCase() === 'SIM'); })
-    .map(function (a) { return pub_({ DataHora: a.DataHora, Autor: a.Autor, Nome: a.Nome, ArquivoId: a.ArquivoId, Tamanho: a.Tamanho, interno: String(a.Visivel).toUpperCase() !== 'SIM' }); });
+    .map(function (a) { return pub_({ DataHora: a.DataHora, Autor: !equipe && a.Autor === p.projeto ? nomeProjetoCliente_(a.Autor) : a.Autor, Nome: a.Nome, ArquivoId: a.ArquivoId, Tamanho: a.Tamanho, interno: String(a.Visivel).toUpperCase() !== 'SIM' }); });
 
   const c = pub_(ch);
   delete c.PastaId; delete c.AvisoAtrasoEnviado;
-  if (p.tipo === 'cliente') delete c.ProjetoId;
+  if (p.tipo === 'cliente') {
+    delete c.ProjetoId;
+    c.Projeto = nomeProjetoCliente_(ch.Projeto);
+    if (c.Usuario === ch.Projeto) c.Usuario = c.Projeto;
+  }
   if (p.tipo === 'equipe' && !ehN1_(p)) { delete c.Email; delete c.Usuario; }
   if (ehN1_(p)) {
     const pj = projetoPorId_(ch.ProjetoId);
@@ -1133,7 +1261,7 @@ function salvarClassificacao(token, id, d) {
 function encaminhar(token, id, setor, nota) {
   const p = exigirN1_(sessao_(token));
   nota = limpa_(nota, 20000);
-  if (SETORES.indexOf(setor) < 0) throw new Error('Escolha o setor.');
+  if (setores_().indexOf(setor) < 0) throw new Error('Escolha o setor.');
   if (!nota) throw new Error('Escreva o que o setor precisa fazer.');
   const r = comTrava_(function () {
     const ch = obterChamado_(id);
@@ -1162,7 +1290,7 @@ function encaminhar(token, id, setor, nota) {
 function devolverAoN1(token, id, nota) {
   const p = sessao_(token);
   nota = limpa_(nota, 20000);
-  if (p.tipo !== 'equipe' || SETORES.indexOf(p.perfil) < 0) throw new Error('Ação exclusiva dos setores.');
+  if (p.tipo !== 'equipe' || setores_().indexOf(p.perfil) < 0) throw new Error('Ação exclusiva dos setores.');
   if (!nota) throw new Error('Escreva o retorno para o N1.');
   const ch = comTrava_(function () {
     const ch = obterChamado_(id);
@@ -1215,7 +1343,7 @@ function itensChat_(p, id) {
   return ler_('Historico')
     .filter(function (h) { return String(h.Chamado) === String(id) && (equipe || String(h.Visivel).toUpperCase() === 'SIM'); })
     .map(function (h) {
-      return pub_({ DataHora: h.DataHora, Autor: h.Autor, Perfil: h.Perfil, Tipo: h.Tipo, Texto: h.Texto,
+      return pub_({ DataHora: h.DataHora, Autor: !equipe && h.Perfil === 'Cliente' && h.Autor === p.projeto ? nomeProjetoCliente_(h.Autor) : h.Autor, Perfil: h.Perfil, Tipo: h.Tipo, Texto: h.Texto,
         Ref: h.Ref || '', interno: String(h.Visivel).toUpperCase() !== 'SIM', meu: ehMeu_(p, h) });
     });
 }
@@ -1427,7 +1555,7 @@ function meuCadastro(token) {
   const p = sessao_(token);
   const pj = projetoDoUsuario_(p);
   return {
-    projeto: String(pj.Projeto), login: String(pj.Login), nomePreferido: String(pj.NomePreferido || ''),
+    projeto: nomeProjetoCliente_(pj.Projeto), login: String(pj.Login), nomePreferido: String(pj.NomePreferido || ''),
     responsavel: String(pj.Responsavel || ''), email: normEmail_(pj.Email), telefone: String(pj.Telefone || '')
   };
 }
@@ -1459,7 +1587,7 @@ function pedirTrocaEmail(token, novo) {
   cache.put('email-troca:' + p.login, JSON.stringify({ email: novo, c: codigo, t: 0 }), 900);
   enviarEmail_(novo, 'Confirme seu e-mail no SAC',
     '<p>Olá, ' + esc_(p.nomePreferido || p.nome) + '.</p><p>Use este código para confirmar este e-mail como o contato do projeto <b>' +
-    esc_(pj.Projeto) + '</b>. Ele vale por 15 minutos.</p>' +
+    esc_(nomeProjetoCliente_(pj.Projeto)) + '</b>. Ele vale por 15 minutos.</p>' +
     '<p style="font-size:28px;letter-spacing:6px;font-weight:bold">' + codigo + '</p>' +
     '<p>Se você não pediu, ignore este e-mail.</p>');
   return 'Enviamos um código para ' + novo + '. Confira também a caixa de spam.';
@@ -1509,10 +1637,12 @@ function configuracoes(token) {
   ler_('Config').forEach(function (l) { if (l.Chave) atuais[String(l.Chave).trim()] = l.Valor; });
   return pub_({
     geral: CONFIG_PADRAO.map(function (l) {
-      const v = atuais[l[0]] !== undefined ? atuais[l[0]] : l[1];
+      let v = atuais[l[0]] !== undefined ? atuais[l[0]] : l[1];
+      if (l[0] === 'URL_APP' && !String(v || '').trim()) v = ScriptApp.getService().getUrl() || '';
       return { chave: l[0], valor: String(v === null ? '' : v), descricao: l[2], tipo: TIPOS_CONFIG[l[0]] || 'texto' };
     }),
     categorias: lista_('Categorias', 'Categoria', CATEGORIAS_PADRAO),
+    perfis: listarPerfisEquipe(token),
     feriados: ler_('Feriados').filter(function (f) { return f.Data; })
       .map(function (f) { return { data: iso_(f.Data instanceof Date ? f.Data : null) || String(f.Data), descricao: String(f.Descricao || '') }; })
       .sort(function (a, b) { return a.data < b.data ? -1 : 1; }),
@@ -1520,7 +1650,7 @@ function configuracoes(token) {
       return { id: String(m.Id || ''), titulo: String(m.Titulo), descricao: String(m.Descricao || ''), link: String(m.Link || ''),
         ordem: Number(m.Ordem || 99), projeto: String(m.Projeto || ''), publico: publicoDe_(m), arquivo: !!m.ArquivoId };
     }).sort(function (a, b) { return a.ordem - b.ordem; }),
-    projetos: ler_('Projetos').map(function (pj) { return { id: String(pj.ProjetoId), nome: String(pj.Projeto), modulos: modulosDoProjeto_(pj) }; })
+    projetos: ler_('Projetos').map(function (pj) { return { id: String(pj.ProjetoId), nome: String(pj.Projeto), modulos: modulosDoProjeto_(pj), modulosDetalhes: detalhesModulos_(pj.Modulos) }; })
       .sort(function (a, b) { return a.nome.localeCompare(b.nome, 'pt-BR'); }),
     linave: MODULOS_LINAVE
   });
@@ -1549,10 +1679,8 @@ function salvarConfiguracoes(token, valores) {
     } else if (tipo === 'email') {
       v = normEmail_(v);
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) throw new Error('E-mail do administrador inválido.');
-    } else if (tipo === 'portal') {
-      if (v && !/^https:\/\/[^\s]+\.[^\s]+/.test(v)) throw new Error('Endereço do portal: cole o endereço completo, começando com https://');
-    } else if (tipo === 'url') {
-      if (v && !/^https:\/\/script\.google\.com\//.test(v)) throw new Error('URL_APP: cole a URL do app que começa com https://script.google.com/ e termina em /exec.');
+    } else if (tipo === 'portal' || tipo === 'url') {
+      if (v && !urlHttpValida_(v)) throw new Error('Informe um endereço completo começando com http:// ou https://. Ex.: http://localhost:3000.');
     } else if (tipo === 'pasta') {
       const m = v.match(/folders\/([A-Za-z0-9_-]+)/);
       if (m) v = m[1];
@@ -1602,6 +1730,34 @@ function salvarCategorias(token, texto) {
   return 'Categorias salvas.';
 }
 
+function salvarCategoria(token, nome, anterior) {
+  const eu = exigirAdmin_(sessao_(token));
+  nome = limpa_(nome, 80);
+  if (!nome || /[\r\n]/.test(nome)) throw new Error('Informe o nome da categoria.');
+  return comTrava_(function () {
+    const lista = lista_('Categorias', 'Categoria', CATEGORIAS_PADRAO).slice();
+    const indice = anterior === undefined || anterior === null ? -1 : lista.indexOf(String(anterior));
+    if (anterior !== undefined && anterior !== null && indice < 0) throw new Error('Categoria não encontrada. Atualize a lista.');
+    if (lista.some(function (c, i) { return i !== indice && c.toLowerCase() === nome.toLowerCase(); })) throw new Error('Já existe uma categoria com esse nome.');
+    if (indice < 0) lista.push(nome); else lista[indice] = nome;
+    reescreverAba_('Categorias', lista.map(function (c) { return [c]; }));
+    auditar_(eu, indice < 0 ? 'Categoria criada' : 'Categoria editada', nome);
+    return 'Categoria salva.';
+  });
+}
+
+function excluirCategoria(token, nome) {
+  const eu = exigirAdmin_(sessao_(token));
+  return comTrava_(function () {
+    const lista = lista_('Categorias', 'Categoria', CATEGORIAS_PADRAO);
+    if (lista.indexOf(nome) < 0) throw new Error('Categoria não encontrada.');
+    if (lista.length <= 1) throw new Error('Mantenha pelo menos uma categoria para os chamados.');
+    reescreverAba_('Categorias', lista.filter(function (c) { return c !== nome; }).map(function (c) { return [c]; }));
+    auditar_(eu, 'Categoria excluída', nome);
+    return 'Categoria excluída.';
+  });
+}
+
 function salvarFeriados(token, lista) {
   const eu = exigirAdmin_(sessao_(token));
   auditar_(eu, 'Feriados', resumoArgs_(arguments));
@@ -1623,7 +1779,7 @@ function salvarModulosProjeto(token, id, texto) {
   return comTrava_(function () {
     const pj = projetoPorId_(id);
     if (!pj) throw new Error('Projeto não encontrado.');
-    atualizar_('Projetos', pj._linha, { Modulos: limparModulos_(texto) });
+    atualizar_('Projetos', pj._linha, { Modulos: serializarModulos_(texto) });
     return 'Módulos de ' + pj.Projeto + ' salvos.';
   });
 }
@@ -1729,8 +1885,7 @@ function situacaoSistema(token) {
   const itens = [];
   const add = function (ok, titulo, detalhe, acao) { itens.push({ ok: ok, titulo: titulo, detalhe: detalhe, acao: acao || '' }); };
 
-  add(/\/exec$/.test(String(c.URL_APP || '')), 'Endereço do app nos e-mails',
-    c.URL_APP ? String(c.URL_APP) : 'Vazio: os botões dos e-mails não abrem o portal. Cole a URL /exec em Configurações > Geral.');
+  add(urlHttpValida_(urlApp_()), 'Endereço do app nos e-mails', urlApp_() || 'Preencha o endereço do SAC em Configurações > Geral.');
   try { add(true, 'Pasta geral dos projetos', pastaGeral_().getName()); } catch (e) { add(false, 'Pasta geral dos projetos', e.message); }
 
   const gat = ScriptApp.getProjectTriggers().map(function (t) { return t.getHandlerFunction(); });
@@ -1756,7 +1911,7 @@ function situacaoSistema(token) {
   const equipe = ler_('Equipe').filter(function (m) { return ativo_(m.Ativo); });
   const n1 = equipe.filter(function (m) { return /^(n1|admin)$/i.test(String(m.Perfil).trim()); }).length;
   add(n1 > 0, 'Atendimento N1', n1 + ' pessoa(s) com perfil N1 ou Admin.');
-  const setoresSem = SETORES.filter(function (st) { return !equipe.some(function (m) { return String(m.Perfil).trim().toLowerCase() === st.toLowerCase(); }); });
+  const setoresSem = setores_().filter(function (st) { return !equipe.some(function (m) { return String(m.Perfil).trim().toLowerCase() === st.toLowerCase(); }); });
   add(!setoresSem.length, 'Setores com pessoas', setoresSem.length ? 'Sem ninguém: ' + setoresSem.join(', ') + '. Chamados encaminhados a eles não avisam ninguém.' : 'Software, Comercial e Financeiro têm pessoas.');
 
   _feriados = null;
@@ -1837,7 +1992,7 @@ function criarProjetoInterno_(nome, pastaId, d) {
   const campos = {
     ProjetoId: novoIdProjeto_(), Projeto: nome, PastaId: pastaId, Responsavel: limpa_(d.responsavel, 120),
     Email: normEmail_(d.email), Telefone: limpa_(d.telefone, 40), Login: login, Ativo: 'SIM', CriadoEm: new Date(),
-    Modulos: d.modulos !== undefined ? limparModulos_(d.modulos) : (ehProjetoLinave_(nome) ? MODULOS_LINAVE.join('\n') : '')
+    Modulos: d.modulos !== undefined ? serializarModulos_(d.modulos) : (ehProjetoLinave_(nome) ? MODULOS_LINAVE.join('\n') : '')
   };
   Object.assign(campos, camposSenha_(senha, true));
   inserir_('Projetos', campos);
@@ -1866,10 +2021,33 @@ function limparModulos_(texto) {
     .join('\n');
 }
 
+function serializarModulos_(valor) {
+  return JSON.stringify(detalhesModulos_(valor));
+}
+
+function listarPastasProjetos(token) {
+  exigirAdmin_(sessao_(token));
+  const vinculadas = {};
+  ler_('Projetos').forEach(function (p) { vinculadas[String(p.PastaId)] = true; });
+  const it = pastaGeral_().getFolders();
+  const pastas = [];
+  while (it.hasNext()) {
+    const pasta = it.next();
+    if (!/^SC - /i.test(pasta.getName())) pastas.push({ id: pasta.getId(), nome: pasta.getName(), vinculada: !!vinculadas[pasta.getId()] });
+  }
+  return pastas.sort(function (a, b) { return a.nome.localeCompare(b.nome, 'pt-BR'); });
+}
+
+function obterPastaGeralProjetos(token) {
+  exigirN1_(sessao_(token));
+  return { url: 'https://drive.google.com/drive/folders/' + encodeURIComponent(String(cfg_().PASTA_GERAL_ID || '').trim()) };
+}
+
 function resumoProjeto_(pj) {
   return pub_({
     ProjetoId: pj.ProjetoId, Projeto: pj.Projeto, Responsavel: pj.Responsavel, NomePreferido: pj.NomePreferido || '', Email: pj.Email, Telefone: pj.Telefone,
     Login: pj.Login, Ativo: ativo_(pj.Ativo), UltimoAcesso: pj.UltimoAcesso, CriadoEm: pj.CriadoEm, modulos: modulosDoProjeto_(pj),
+    modulosDetalhes: detalhesModulos_(pj.Modulos),
     senhaTemporaria: String(pj.TrocarSenha).toUpperCase() === 'SIM',
     pastaUrl: pj.PastaId ? 'https://drive.google.com/drive/folders/' + pj.PastaId : ''
   });
@@ -1891,20 +2069,24 @@ function criarProjeto(token, d) {
   const eu = exigirAdmin_(sessao_(token));
   auditar_(eu, 'Projeto criado', resumoArgs_(arguments));
   d = d || {};
-  const nome = limpa_(d.projeto, 150).replace(/[\\/:*?"<>|]/g, '-');
-  if (!nome) throw new Error('Dê um nome ao projeto.');
+  if (!d.pastaId) throw new Error('Selecione a pasta do projeto.');
   if (d.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normEmail_(d.email))) throw new Error('E-mail inválido.');
   const r = comTrava_(function () {
+    const it = pastaGeral_().getFolders();
+    let pasta = null;
+    while (it.hasNext()) {
+      const f = it.next();
+      if (f.getId() === String(d.pastaId) && !/^SC - /i.test(f.getName())) pasta = f;
+    }
+    if (!pasta) throw new Error('A pasta selecionada não está na pasta geral. Atualize a lista.');
+    const nome = pasta.getName();
+    if (ler_('Projetos').some(function (p) { return String(p.PastaId) === String(d.pastaId); })) throw new Error('Esta pasta já tem um projeto. Edite o projeto existente.');
     if (ler_('Projetos').some(function (p) { return String(p.Projeto).toLowerCase() === nome.toLowerCase(); })) {
       throw new Error('Já existe um projeto com esse nome.');
     }
-    const geral = pastaGeral_();
-    const it = geral.getFoldersByName(nome);
-    const pasta = it.hasNext() ? it.next() : geral.createFolder(nome);
     return criarProjetoInterno_(nome, pasta.getId(), d);
   });
-  if (d.enviarEmail && r.email) emailAcesso_(r.email, d.responsavel || nome, 'do projeto ' + nome, r.login, r.senha);
-  return { projeto: r.projeto, login: r.login, senha: r.senha, emailEnviado: !!(d.enviarEmail && r.email) };
+  return { projeto: r.projeto, login: r.login, senha: r.senha, emailEnviado: false };
 }
 
 function salvarProjeto(token, d) {
@@ -1919,7 +2101,7 @@ function salvarProjeto(token, d) {
     const login = loginLivre_(pj.Projeto, d.Login || pj.Login, pj.Login);
     atualizar_('Projetos', pj._linha, {
       Responsavel: limpa_(d.Responsavel, 120), Email: email, Telefone: limpa_(d.Telefone, 40),
-      Login: login, Ativo: d.Ativo === false ? 'NAO' : 'SIM', Modulos: limparModulos_(d.Modulos)
+      Login: login, Ativo: d.Ativo === false ? 'NAO' : 'SIM', Modulos: serializarModulos_(d.Modulos)
     });
     esquecerPerfil_(pj.Login); esquecerPerfil_(login);
     return 'Projeto salvo.';
@@ -1928,6 +2110,7 @@ function salvarProjeto(token, d) {
 
 function redefinirSenhaAcesso(token, tipo, chave, enviarEmail) {
   const eu = exigirAdmin_(sessao_(token));
+  if (tipo !== 'projeto' && tipo !== 'equipe') throw new Error('Tipo de acesso inválido.');
   auditar_(eu, 'Nova senha gerada', resumoArgs_(arguments));
   const senha = novaSenha_();
   const r = comTrava_(function () {
@@ -1939,17 +2122,19 @@ function redefinirSenhaAcesso(token, tipo, chave, enviarEmail) {
     }
     const m = ler_('Equipe').filter(function (x) { return normLogin_(x.Login) === normLogin_(chave); })[0];
     if (!m) throw new Error('Pessoa da equipe não encontrada.');
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normEmail_(m.Email))) throw new Error('Cadastre um e-mail válido para esta pessoa antes de gerar uma nova senha.');
     atualizar_('Equipe', m._linha, Object.assign(camposSenha_(senha, true), { SenhaTempHash: '', SenhaTempSal: '', SenhaTempExpira: '' }));
     return { login: normLogin_(m.Login), email: normEmail_(m.Email), nome: String(m.Nome), quem: 'da equipe (' + m.Perfil + ')' };
   });
   CacheService.getScriptCache().remove('falhas:' + r.login);
-  if (enviarEmail && r.email) emailAcesso_(r.email, r.nome, r.quem, r.login, senha);
-  return { login: r.login, senha: senha, emailEnviado: !!(enviarEmail && r.email) };
+  const enviar = tipo === 'equipe';
+  if (enviar) emailAcesso_(r.email, r.nome, r.quem, r.login, senha);
+  return { login: r.login, senha: senha, emailEnviado: enviar };
 }
 
 // Chamar dentro de comTrava_
 function criarMembro_(d) {
-  const perfil = PERFIS_EQUIPE.filter(function (p) { return p.toLowerCase() === String(d.perfil || '').toLowerCase(); })[0];
+  const perfil = perfisEquipe_().filter(function (p) { return p.toLowerCase() === String(d.perfil || '').toLowerCase(); })[0];
   if (!perfil) throw new Error('Escolha o perfil.');
   const senha = novaSenha_();
   const login = loginLivre_(d.nome, d.login);
@@ -1979,7 +2164,7 @@ function salvarMembro(token, d) {
     if (!d.loginOriginal) return criarMembro_({ nome: nome, email: email, perfil: d.Perfil, login: d.Login });
     const m = ler_('Equipe').filter(function (x) { return normLogin_(x.Login) === normLogin_(d.loginOriginal); })[0];
     if (!m) throw new Error('Pessoa não encontrada.');
-    const perfil = PERFIS_EQUIPE.filter(function (p) { return p.toLowerCase() === String(d.Perfil || '').toLowerCase(); })[0];
+    const perfil = perfisEquipe_().filter(function (p) { return p.toLowerCase() === String(d.Perfil || '').toLowerCase(); })[0];
     if (!perfil) throw new Error('Escolha o perfil.');
     if (normLogin_(m.Login) === eu.login && (perfil !== 'Admin' || d.Ativo === false)) throw new Error('Você não pode tirar o seu próprio acesso de administrador.');
     const login = loginLivre_(nome, d.Login || m.Login, m.Login);
@@ -1987,8 +2172,8 @@ function salvarMembro(token, d) {
     esquecerPerfil_(m.Login); esquecerPerfil_(login);
     return null;
   });
-  if (r && d.enviarEmail) emailAcesso_(email, nome, 'da equipe (' + d.Perfil + ')', r.login, r.senha);
-  return r ? { login: r.login, senha: r.senha, emailEnviado: !!d.enviarEmail } : null;
+  if (r) emailAcesso_(email, nome, 'da equipe (' + d.Perfil + ')', r.login, r.senha);
+  return r ? { login: r.login, senha: r.senha, emailEnviado: true } : null;
 }
 
 function emailAcesso_(email, nome, quem, login, senha) {
@@ -2176,7 +2361,8 @@ function enviarEmail_(para, assunto, html) {
 
 function nomeCliente_(ch) {
   const pj = projetoPorId_(ch.ProjetoId);
-  return String((pj && (pj.NomePreferido || pj.Responsavel)) || ch.Usuario || ch.Projeto || '');
+  const nome = String((pj && (pj.NomePreferido || pj.Responsavel)) || ch.Usuario || ch.Projeto || '');
+  return nome === ch.Projeto || (pj && nome === pj.Projeto) ? nomeProjetoCliente_(nome) : nome;
 }
 
 function emailCliente_(ch) {
