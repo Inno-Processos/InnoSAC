@@ -11,7 +11,7 @@
 
   if (estado.estado === 'sem-acesso') {
     $('lp-titulo').textContent = 'Acesso não liberado';
-    $('lp-texto').textContent = 'Você entrou com a conta Innomaker, mas ela ainda não tem acesso ao SAC.';
+    $('lp-texto').textContent = 'Seu acesso ao SAC ainda não foi liberado. Fale com a nossa equipe para concluir o cadastro.';
     $('lp-erro').textContent = estado.erro || '';
     $('lp-erro').hidden = !estado.erro;
     $('lp-entrar').textContent = 'Tentar de novo';
