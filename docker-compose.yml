@@ -18,7 +18,6 @@ services:
       traefik.http.routers.sac.entrypoints: 'https'
       traefik.http.routers.sac.tls.certresolver: 'cloudflare'
       traefik.http.services.sac.loadbalancer.server.port: '3000'
-      traefik.http.routers.sac.middlewares: 'authelia@docker'
 
     dns:
       - 192.168.0.201
