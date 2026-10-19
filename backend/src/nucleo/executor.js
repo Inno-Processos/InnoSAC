@@ -10,7 +10,8 @@ function criarExecutor(codigo, correio, arquivo) {
   const script = new vm.Script(codigo, { filename: arquivo || 'Codigo.gs' });
 
   function contexto() {
-    const ctx = vm.createContext({ console });
+    // SAC_AUTH_MODE: as regras sabem se o login é pelo Authelia (projetos vêm do LLDAP) ou por senha
+    const ctx = vm.createContext({ console, SAC_AUTH_MODE: String(process.env.AUTH_MODE || 'senha').trim().toLowerCase() });
     const svc = servicos.makeServices(ctx);
     Object.keys(svc).forEach(k => { if (!k.startsWith('_')) ctx[k] = svc[k]; });
     script.runInContext(ctx, { timeout: 60000 });

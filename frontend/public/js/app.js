@@ -41,7 +41,7 @@ function restaurarTela() {
   if (!rota || rota.login !== S.usuario.login) return false;
   if (rota.tela === 'detalhe' && typeof rota.valor === 'string') { telaDetalhe(rota.valor); return true; }
   if (S.usuario.tipo === 'cliente') {
-    if (rota.tela === 'cadastro') { telaMeuCadastro(); return true; }
+    if (rota.tela === 'cadastro' && !S.usuario.contaLldap) { telaMeuCadastro(); return true; }
     if (rota.tela === 'novo') { telaNovoChamado(false); return true; }
     return false;
   }
@@ -228,10 +228,22 @@ function iconeInterface(nome) {
     senha: '<rect x="5" y="10" width="14" height="11" rx="3"/><path d="M8 10V7a4 4 0 0 1 8 0v3M12 14v3"/>',
     sair: '<path d="M9 4H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h4M13 7l5 5-5 5M8 12h13"/>',
     cadastro: '<circle cx="12" cy="8" r="4"/><path d="M4 21v-2a8 8 0 0 1 16 0v2"/>',
-    novo: '<path d="M12 5v14M5 12h14"/>'
+    novo: '<path d="M12 5v14M5 12h14"/>',
+    editar: '<path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16v4Z"/><path d="m13.5 6.5 4 4"/>',
+    excluir: '<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>',
+    modulos: '<rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/>'
   };
   return `<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${desenhos[nome] || desenhos.fila}</svg>`;
 }
+
+// Telas de cadastro (Categorias, Módulos): cabeçalho com ícone, título, descrição e ação principal
+function cabecalhoPainel(icone, titulo, descricao, botao) {
+  return `<div class="painel-cab"><span class="painel-cab-ico">${iconeInterface(icone)}</span>
+    <div class="painel-cab-texto"><h2>${esc(titulo)}</h2><p>${esc(descricao)}</p></div>${botao || ''}</div>`;
+}
+// Botão só com ícone (editar ou excluir); o rótulo vai para leitores de tela e para a dica do mouse
+const botaoIcone = (tipo, rotulo, atributos) =>
+  `<button type="button" class="btn-ico ${tipo}" ${atributos} aria-label="${esc(rotulo)}" title="${esc(rotulo)}">${iconeInterface(tipo)}</button>`;
 
 function topo() {
   novaTela();
@@ -249,7 +261,7 @@ function topo() {
   const u = S.usuario;
   const iniciais = String(u.nome || u.projeto || 'SAC').trim().split(/\s+/).slice(0, 2).map(n => n.charAt(0)).join('').toUpperCase();
   quem.innerHTML = `<span class="avatar" aria-hidden="true">${esc(iniciais)}</span><span class="quem-id" translate="no">${esc(u.tipo === 'cliente' ? 'Login ' + u.login : u.nome + ' · ' + u.perfil)}</span>
-    ${u.tipo === 'cliente' ? `<button class="btn btn-fantasma" id="btn-cadastro">${iconeInterface('cadastro')}Meu cadastro</button>` : ''}
+    ${u.tipo === 'cliente' && !u.contaLldap ? `<button class="btn btn-fantasma" id="btn-cadastro">${iconeInterface('cadastro')}Meu cadastro</button>` : ''}
     ${sso() ? '' : `<button class="btn btn-fantasma" id="btn-senha">${iconeInterface('senha')}Trocar senha</button>`}
     <button class="btn btn-fantasma" id="btn-sair">${iconeInterface('sair')}Sair</button>`;
   if ($('#btn-senha')) $('#btn-senha').onclick = () => telaTrocarSenha(false);
@@ -553,6 +565,9 @@ async function telaCliente() {
   S.cache.meus = lista;
   const pend = lista.filter(c => c.pesquisaPendente);
   const f = S.filtroCliente;
+  // Cliente em vários projetos (conta Innomaker): mostra o projeto de cada chamado e permite filtrar
+  const projetos = S.base.projetos || [];
+  const varios = projetos.length > 1;
   app.innerHTML = `
     <div class="cabeca-lista"><div><h1>Meus chamados</h1><p class="suave" style="margin:0">Acompanhe o atendimento e converse com a nossa equipe.</p></div>
       <button class="btn btn-primario" id="b-novo">${iconeInterface('novo')}Abrir chamado</button></div>
@@ -582,6 +597,7 @@ async function telaCliente() {
       <p class="pequeno suave" style="margin:10px 0 0">Prazo de solução: ${S.base.prazoNormal} dias úteis, de segunda a sexta, das ${S.publico.horaInicio}h às ${S.publico.horaFim}h, sem contar feriados. Se o sistema estiver bloqueado, o chamado passa à frente da fila. Você recebe um e-mail a cada mudança de status.</p>
     </details>
     <div class="filtros">
+      ${varios ? `<select id="f-projeto" aria-label="Projeto"><option value="">Todos os projetos</option>${projetos.map(p => `<option value="${esc(p.id)}" ${f.projeto === p.id ? 'selected' : ''}>${esc(p.nome)}</option>`).join('')}</select>` : ''}
       <input type="search" id="f-busca" placeholder="Buscar por número ou palavra…" value="${esc(f.busca || '')}" aria-label="Buscar">
       <select id="f-status" aria-label="Status"><option value="">Todos os status</option>${S.base.status.map(s => `<option ${f.status === s ? 'selected' : ''}>${esc(s)}</option>`).join('')}</select>
       <input type="date" id="f-de" value="${esc(f.de || '')}" aria-label="Aberto a partir de">
@@ -592,26 +608,26 @@ async function telaCliente() {
   if ($('#b-completar')) $('#b-completar').onclick = () => telaMeuCadastro(false);
   $$('[data-abrir]').forEach(b => b.onclick = () => telaDetalhe(b.dataset.abrir));
   const render = () => {
-    Object.assign(f, { busca: $('#f-busca').value, status: $('#f-status').value, de: $('#f-de').value, ate: $('#f-ate').value });
+    Object.assign(f, { busca: $('#f-busca').value, status: $('#f-status').value, de: $('#f-de').value, ate: $('#f-ate').value, projeto: varios ? $('#f-projeto').value : '' });
     const q = (f.busca || '').toLowerCase();
-    const itens = lista.filter(c => (!f.status || c.Status === f.status) &&
+    const itens = lista.filter(c => (!f.status || c.Status === f.status) && (!f.projeto || c.ProjetoId === f.projeto) &&
       (!q || (c.Id + ' ' + c.Titulo + ' ' + c.Modulo + ' ' + c.Categoria).toLowerCase().includes(q)) &&
       (!f.de || diaISO(c.Abertura) >= f.de) && (!f.ate || diaISO(c.Abertura) <= f.ate));
     $('#lista').innerHTML = !lista.length
       ? `<div class="vazio">Você ainda não abriu chamados. Use <b>Abrir chamado</b> quando precisar de suporte.</div>`
       : !itens.length ? `<div class="vazio">Nenhum chamado com esses filtros.</div>`
-      : itens.map(c => linhaChamado(c, false)).join('');
+      : itens.map(c => linhaChamado(c, false, varios)).join('');
     $$('#lista .linha-ch').forEach(b => b.onclick = () => telaDetalhe(b.dataset.id));
   };
-  ['#f-busca', '#f-status', '#f-de', '#f-ate'].forEach(s => $(s).oninput = render);
+  ['#f-busca', '#f-status', '#f-de', '#f-ate', '#f-projeto'].forEach(s => { if ($(s)) $(s).oninput = render; });
   render();
 }
 
-function linhaChamado(c, equipe) {
+function linhaChamado(c, equipe, mostrarProjeto) {
   const prazo = FINAIS.includes(c.Status) ? '' : `<span class="${c.atrasado ? 'atrasado' : ''}">Prazo ${fmtDH(c.Prazo)}${c.atrasado ? ' (vencido)' : ''}</span>`;
   return `<button class="linha-ch ${c.Prioridade === 'Bloqueio' ? 'bloq' : ''}" data-id="${esc(c.Id)}">
     <span class="protocolo" translate="no">${esc(c.Id)}</span>
-    <span class="tit">${equipe ? `<span class="suave">${esc(c.Projeto)}:</span> ` : ''}${esc(c.Titulo)}</span>
+    <span class="tit">${equipe || mostrarProjeto ? `<span class="suave">${esc(c.Projeto)}:</span> ` : ''}${esc(c.Titulo)}</span>
     <span>${c.naoLidas ? `<span class="chip chip-nova">${c.naoLidas} ${c.naoLidas === 1 ? 'nova' : 'novas'}</span>` : ''}${c.Prioridade === 'Bloqueio' ? '<span class="chip chip-bloqueio">Bloqueio</span> ' : ''}${chipStatus(c.Status)}</span>
     <span class="meta"><span>${c.Modulo ? esc(c.Modulo) + ', ' : ''}${esc(c.Categoria)}</span><span>Aberto ${fmtDH(c.Abertura)}</span>
       <span>Atualizado ${fmtDH(c.UltimaAtualizacao)}</span>${equipe && c.Setor ? `<span>Setor ${esc(c.Setor)}</span>` : ''}${prazo}
@@ -628,7 +644,11 @@ async function telaNovoChamado(porTelefone) {
     app.innerHTML = '<div class="carregando">Carregando projetos…</div>';
     try { clientes = (await api('listarProjetos', S.token)).filter(c => c.Ativo); } catch (e) { return; }
     if (nav !== S.nav) return;
+  } else if ((S.base.projetos || []).length > 1) {
+    // Cliente em vários projetos escolhe o projeto do chamado
+    clientes = S.base.projetos.map(p => ({ ProjetoId: p.id, Projeto: p.nome, modulos: p.modulos }));
   }
+  const escolher = porTelefone || clientes.length > 1;
   const b = S.base;
   app.innerHTML = `
   ${porTelefone ? '' : '<button class="btn-link voltar" id="b-voltar">Voltar para meus chamados</button>'}
@@ -636,7 +656,7 @@ async function telaNovoChamado(porTelefone) {
     <h1>${porTelefone ? 'Registrar ligação como chamado' : 'Abrir chamado'}</h1>
     <p class="suave">Um chamado por assunto. Se forem dois problemas diferentes, abra dois chamados.</p>
     <form id="f-novo" autocomplete="off">
-      ${porTelefone ? `<div class="campo"><label for="n-cliente">Projeto de quem ligou</label>
+      ${escolher ? `<div class="campo"><label for="n-cliente">${porTelefone ? 'Projeto de quem ligou' : 'Projeto'}</label>
         <select id="n-cliente" required><option value="">Escolha…</option>${clientes.map(c => `<option value="${esc(c.ProjetoId)}">${esc(c.Projeto)}${c.Responsavel ? ', ' + esc(c.Responsavel) : ''}</option>`).join('')}</select>
         ${clientes.length ? '' : '<div class="ajuda">Nenhum projeto ativo. O administrador cria projetos na aba Projetos.</div>'}</div>` : ''}
       <div class="grade-2">
@@ -671,7 +691,7 @@ async function telaNovoChamado(porTelefone) {
     $('#n-modulo').required = !!tem;
     $('#n-modulo').innerHTML = tem ? '<option value="">Escolha…</option>' + mods.map(m => `<option>${esc(m)}</option>`).join('') : '';
   };
-  if (porTelefone) {
+  if (escolher) {
     montarModulos([]);
     $('#n-cliente').onchange = () => montarModulos((clientes.find(c => c.ProjetoId === $('#n-cliente').value) || {}).modulos);
   } else montarModulos(b.modulos);
@@ -683,7 +703,7 @@ async function telaNovoChamado(porTelefone) {
     if (esp) partes.push('O que esperava:\n' + esp);
     partes.push((fez || esp ? 'O que aconteceu:\n' : '') + acon);
     const dados = {
-      projetoId: porTelefone ? $('#n-cliente').value : '', categoria: $('#n-categoria').value, modulo: $('#n-modulo').value,
+      projetoId: escolher ? $('#n-cliente').value : '', categoria: $('#n-categoria').value, modulo: $('#n-modulo').value,
       titulo: $('#n-titulo').value, descricao: partes.join('\n\n'), bloqueio: ($('input[name=bloq]:checked') || {}).value || ''
     };
     const btn = $('#b-enviar');
@@ -1186,9 +1206,9 @@ async function telaFila() {
 function caixaAcessos(linhas, titulo) {
   if (!linhas || !linhas.length) return '';
   if (sso()) return `<div class="acessos" role="alert"><h3>${esc(titulo || 'Projetos criados')}</h3>
-    <p class="pequeno">Para o cliente entrar, crie no LLDAP o grupo abaixo e coloque nele os usuários do cliente.</p>
+    <p class="pequeno">Para os clientes entrarem, ligue cada projeto ao seu grupo <code>Projeto_...</code> do LLDAP em <b>Editar</b>.</p>
     <div class="rolagem"><table><thead><tr><th>Projeto</th><th>Grupo no LLDAP</th></tr></thead><tbody>
-    ${linhas.map(l => `<tr><td>${esc(l.projeto || '')}</td><td><code translate="no">${esc(grupoLldap('projeto ' + l.login))}</code></td></tr>`).join('')}
+    ${linhas.map(l => `<tr><td>${esc(l.projeto || '')}</td><td>${l.grupoLldap ? `<code translate="no">${esc(l.grupoLldap)}</code>` : '<span class="atrasado">não definido</span>'}</td></tr>`).join('')}
     </tbody></table></div></div>`;
   return `<div class="acessos" role="alert"><h3>${esc(titulo || 'Acessos criados')}</h3>
     <p class="pequeno">Anote ou envie agora: a senha temporária só aparece nesta tela. No primeiro login, a pessoa cria a própria senha.</p>
@@ -1254,37 +1274,52 @@ function preencherTabelaModulos(raiz, modulos) {
 async function telaProjetos(acessos) {
   const nav = novaTela();
   app.innerHTML = '<div class="carregando">Carregando projetos…</div>';
-  let lista, pastaGeral;
-  try { [lista, pastaGeral] = await Promise.all([api('listarProjetos', S.token), api('obterPastaGeralProjetos', S.token)]); } catch (e) { return; }
+  let lista, pastaGeral, gruposVistos = [], clientesLldap = [];
+  try {
+    [lista, pastaGeral, gruposVistos, clientesLldap] = await Promise.all([api('listarProjetos', S.token), api('obterPastaGeralProjetos', S.token),
+      sso() ? api('gruposProjetoLldap', S.token) : [], sso() ? api('listarClientesLldap', S.token) : []]);
+  } catch (e) { return; }
   if (nav !== S.nav) return;
+  // Campo do grupo Projeto_... (modo Authelia), com os grupos já vistos nos logins como sugestão
+  const campoGrupo = valor => sso() ? `<div class="campo"><label for="pj-grupo">Grupo do projeto no LLDAP</label>
+    <input type="text" id="pj-grupo" list="pj-grupos" autocapitalize="none" spellcheck="false" autocomplete="off" placeholder="Projeto_..." value="${esc(valor || '')}">
+    <datalist id="pj-grupos">${gruposVistos.filter(g => !g.projeto).map(g => `<option value="${esc(g.grupo)}">`).join('')}</datalist>
+    <div class="ajuda">Clientes (grupo Clientes) que estiverem neste grupo veem os chamados do projeto. As sugestões são grupos que já apareceram nos logins.</div></div>` : '';
   app.innerHTML = `
     <div class="cabeca-lista"><div><h1>Projetos</h1>
-      <p class="suave" style="margin:0">Gerencie os acessos, responsáveis e módulos de cada projeto.</p></div>
-      <div class="opcoes"><a class="btn" href="${esc(pastaGeral.url)}" target="_blank" rel="noopener">Ver pastas no Drive</a><button class="btn" id="b-sinc">Buscar pastas novas</button><button class="btn btn-primario" id="b-novo-pj">Criar projeto</button></div></div>
+      <p class="suave" style="margin:0">${sso() ? 'Os projetos vêm dos grupos Projeto_... do LLDAP: cada grupo aparece aqui no primeiro login de alguém dele. Aqui você completa responsável, e-mail e módulos.' : 'Gerencie os acessos, responsáveis e módulos de cada projeto.'}</p></div>
+      <div class="opcoes"><a class="btn" href="${esc(pastaGeral.url)}" target="_blank" rel="noopener">Ver pastas no Drive</a>${sso() ? '' : '<button class="btn" id="b-sinc">Buscar pastas novas</button><button class="btn btn-primario" id="b-novo-pj">Criar projeto</button>'}</div></div>
     ${caixaAcessos(acessos)}
     <div class="bloco" id="form-pj" hidden style="margin-bottom:18px"></div>
     <div class="bloco rolagem">${lista.length ? `<table><thead><tr><th>Projeto</th><th>${sso() ? 'Grupo no LLDAP' : 'Login'}</th><th>Responsável</th><th>E-mail</th><th>Acesso</th><th>Último login</th><th scope="col">Ações</th></tr></thead>
       <tbody>${lista.map((c, i) => `<tr>
         <td><b>${esc(c.Projeto)}</b><div class="suave pequeno">${esc(c.ProjetoId)}${c.modulos.length ? ', ' + c.modulos.length + ' módulos' : ', sem módulos'}${c.pastaUrl ? `, <a href="${esc(c.pastaUrl)}" target="_blank" rel="noopener">pasta</a>` : ''}</div></td>
-        <td>${sso() ? `<code translate="no">${esc(grupoLldap('projeto ' + c.Login))}</code>` : `<code translate="no">${esc(c.Login)}</code>${c.senhaTemporaria ? '<div class="suave pequeno">senha temporária</div>' : ''}`}</td>
+        <td>${sso() ? (c.GrupoLldap ? `<code translate="no">${esc(c.GrupoLldap)}</code>` : '<span class="atrasado">não definido</span>') : `<code translate="no">${esc(c.Login)}</code>${c.senhaTemporaria ? '<div class="suave pequeno">senha temporária</div>' : ''}`}</td>
         <td>${esc(c.Responsavel || '—')}${c.NomePreferido ? `<div class="suave pequeno">prefere "${esc(c.NomePreferido)}"</div>` : ''}</td><td>${c.Email ? esc(c.Email) : '<span class="atrasado">sem e-mail</span>'}</td>
         <td>${c.Ativo ? 'Ativo' : '<span class="suave">Desativado</span>'}</td><td>${c.UltimoAcesso ? fmtDH(c.UltimoAcesso) : '<span class="suave">nunca</span>'}</td>
         <td class="acoes-linha"><button class="btn-link" data-editar="${i}">Editar</button>${sso() ? '' : `<button class="btn-link" data-senha="${i}">Nova senha</button>`}</td></tr>`).join('')}</tbody></table>`
-      : '<div class="vazio">Nenhum projeto ainda. Use <b>Buscar pastas novas</b> para trazer as pastas da pasta geral ou <b>Criar projeto</b>.</div>'}</div>`;
+      : `<div class="vazio">${sso() ? 'Nenhum projeto ainda. Eles aparecem quando alguém de um grupo Projeto_... do LLDAP entra no SAC.' : 'Nenhum projeto ainda. Use <b>Buscar pastas novas</b> para trazer as pastas da pasta geral ou <b>Criar projeto</b>.'}</div>`}</div>
+    ${sso() ? `<div class="bloco rolagem" style="margin-top:18px"><h2>Clientes que já entraram</h2>
+      <p class="suave pequeno">Usuários do grupo Clientes no LLDAP. Os projetos de cada um vêm dos grupos Projeto_... e são atualizados a cada login.</p>
+      ${clientesLldap.length ? `<table><thead><tr><th>Nome</th><th>Usuário</th><th>E-mail</th><th>Projetos</th><th>Acesso</th><th>Último login</th></tr></thead>
+      <tbody>${clientesLldap.map(c => `<tr><td>${esc(c.Nome)}</td><td><code translate="no">${esc(c.Login)}</code></td><td>${esc(c.Email)}</td>
+        <td>${c.projetos.map(esc).join('<br>')}</td><td>${c.Ativo ? 'Ativo' : '<span class="suave">Desativado</span>'}</td>
+        <td>${c.UltimoAcesso ? fmtDH(c.UltimoAcesso) : '<span class="suave">nunca</span>'}</td></tr>`).join('')}</tbody></table>`
+      : '<p class="suave">Nenhum cliente entrou pela conta Innomaker ainda.</p>'}</div>` : ''}`;
   ligarCopiar(acessos || []);
 
-  $('#b-sinc').onclick = async e => {
+  if ($('#b-sinc')) $('#b-sinc').onclick = async e => {
     const r = await acao(e.target, () => api('sincronizarProjetos', S.token));
     if (!r) return;
     if (!r.length) return aviso('Nenhuma pasta nova na pasta geral.', 'ok');
     telaProjetos(r);
   };
   const form = $('#form-pj');
-  $('#b-novo-pj').onclick = async () => {
+  if ($('#b-novo-pj')) $('#b-novo-pj').onclick = async () => {
     const pastas = await acao($('#b-novo-pj'), () => api('listarPastasProjetos', S.token));
     if (!pastas || nav !== S.nav) return;
     form.hidden = false;
-    form.innerHTML = `<h2>Criar projeto</h2><p class="suave">${sso() ? 'Selecione uma pasta da pasta geral para criar o projeto. O login define o nome do grupo no LLDAP (sac_projeto_login).' : 'Selecione uma pasta da pasta geral para criar o projeto e seu login com senha temporária.'}</p>
+    form.innerHTML = `<h2>Criar projeto</h2><p class="suave">${sso() ? 'Selecione uma pasta da pasta geral para criar o projeto e informe o grupo Projeto_... do LLDAP que dá acesso a ele.' : 'Selecione uma pasta da pasta geral para criar o projeto e seu login com senha temporária.'}</p>
       <form id="f-pj" autocomplete="off"><div class="grade-2">
         <div class="campo"><label for="pj-nome">Nome do projeto</label><select id="pj-nome" required><option value="">Selecione uma pasta…</option>${pastas.map(p => `<option value="${esc(p.id)}" ${p.vinculada ? 'disabled' : ''}>${esc(p.nome)}${p.vinculada ? ' (já cadastrada)' : ''}</option>`).join('')}</select>
         ${pastas.some(p => !p.vinculada) ? '' : '<div class="ajuda">Nenhuma pasta disponível. Adicione uma pasta à pasta geral e abra este formulário novamente, ou edite um projeto existente.</div>'}</div>
@@ -1292,9 +1327,10 @@ async function telaProjetos(acessos) {
         <div class="campo"><label for="pj-resp">Responsável (quem abre os chamados)</label><input type="text" id="pj-resp"></div>
         <div class="campo"><label for="pj-email">E-mail para os avisos</label><input type="email" id="pj-email" spellcheck="false" autocapitalize="none"></div>
         <div class="campo"><label for="pj-tel">Telefone</label><input type="tel" id="pj-tel"></div>
+        ${campoGrupo('')}
       </div>
       ${tabelaModulos()}
-      <p class="suave pequeno">${sso() ? 'Depois de criar, coloque os usuários do cliente no grupo do projeto no LLDAP.' : 'A senha temporária será exibida para você entregar ao cliente. Ele cria a própria senha no primeiro acesso. Depois, pode usar “Esqueci minha senha” com o e-mail cadastrado.'}</p>
+      <p class="suave pequeno">${sso() ? 'Os clientes do projeto precisam estar no grupo Clientes e no grupo do projeto no LLDAP.' : 'A senha temporária será exibida para você entregar ao cliente. Ele cria a própria senha no primeiro acesso. Depois, pode usar “Esqueci minha senha” com o e-mail cadastrado.'}</p>
       <button class="btn btn-primario" id="b-pj">Criar projeto</button> <button type="button" class="btn" id="b-pj-x">Cancelar</button></form>`;
     $('#pj-nome').focus();
     preencherTabelaModulos(form, []);
@@ -1307,6 +1343,7 @@ async function telaProjetos(acessos) {
       ev.preventDefault();
       const d = { pastaId: $('#pj-nome').value, login: $('#pj-login').value, responsavel: $('#pj-resp').value,
         email: $('#pj-email').value, telefone: $('#pj-tel').value, modulos: lerTabelaModulos(form) };
+      if ($('#pj-grupo')) d.grupoLldap = $('#pj-grupo').value;
       const r = await acao($('#b-pj'), () => api('criarProjeto', S.token, d), 'Projeto criado.');
       if (r) telaProjetos([r]);
     };
@@ -1317,10 +1354,11 @@ async function telaProjetos(acessos) {
     form.hidden = false;
     form.innerHTML = `<h2>Editar ${esc(c.Projeto)}</h2>
       <form id="f-pj" autocomplete="off"><div class="grade-2">
-        <div class="campo"><label for="pj-login">Login</label><input type="text" id="pj-login" autocapitalize="none" spellcheck="false" autocomplete="off" value="${esc(c.Login)}" required>${sso() ? '<div class="ajuda">O login define o grupo no LLDAP. Se mudar, renomeie o grupo no LLDAP também.</div>' : ''}</div>
+        <div class="campo"><label for="pj-login">Login</label><input type="text" id="pj-login" autocapitalize="none" spellcheck="false" autocomplete="off" value="${esc(c.Login)}" required></div>
         <div class="campo"><label for="pj-resp">Responsável (quem abre os chamados)</label><input type="text" id="pj-resp" value="${esc(c.Responsavel || '')}"></div>
         <div class="campo"><label for="pj-email">E-mail para os avisos</label><input type="email" id="pj-email" spellcheck="false" autocapitalize="none" value="${esc(c.Email || '')}"></div>
         <div class="campo"><label for="pj-tel">Telefone</label><input type="tel" id="pj-tel" value="${esc(c.Telefone || '')}"></div>
+        ${campoGrupo(c.GrupoLldap)}
       </div>
       ${tabelaModulos()}
       <label class="check" style="margin-bottom:14px"><input type="checkbox" id="pj-ativo" ${c.Ativo ? 'checked' : ''}> Acesso ativo</label>
@@ -1331,6 +1369,7 @@ async function telaProjetos(acessos) {
       ev.preventDefault();
       const d = { ProjetoId: c.ProjetoId, Login: $('#pj-login').value, Responsavel: $('#pj-resp').value,
         Email: $('#pj-email').value, Telefone: $('#pj-tel').value, Ativo: $('#pj-ativo').checked, Modulos: lerTabelaModulos(form) };
+      if ($('#pj-grupo')) d.GrupoLldap = $('#pj-grupo').value;
       if (await acao($('#b-pj'), () => api('salvarProjeto', S.token, d), 'Projeto salvo.')) telaProjetos();
     };
     abrirEditor(form, 'Editar projeto: ' + c.Projeto);
@@ -1421,22 +1460,16 @@ function equipeLldap(lista) {
   const perfis = ['Admin', 'N1'].concat(S.base.setores);
   app.innerHTML = `
     <div class="cabeca-lista"><div><h1>Equipe</h1>
-      <p class="suave" style="margin:0">As pessoas e os perfis vêm do LLDAP. Para dar ou tirar acesso, mude os grupos da pessoa no LLDAP.</p></div>
-      <button class="btn" id="b-adicionar-perfil">Adicionar perfil</button></div>
-    <div id="form-novo-perfil" hidden></div>
+      <p class="suave" style="margin:0">As pessoas e os perfis vêm do LLDAP. Para dar ou tirar acesso, mude os grupos da pessoa no LLDAP.</p></div></div>
     <div class="bloco rolagem"><h2>Grupos do LLDAP</h2>
       <p class="suave pequeno">Coloque cada pessoa em um destes grupos. Quem estiver em mais de um fica com o perfil mais alto da lista.</p>
-      <table><thead><tr><th>Perfil no SAC</th><th>Grupo no LLDAP</th></tr></thead>
+      <table class="tabela-chave"><thead><tr><th>Perfil no SAC</th><th>Grupo no LLDAP</th></tr></thead>
       <tbody>${perfis.map(p => `<tr><td>${esc(p)}</td><td><code translate="no">${esc(grupoLldap(p))}</code></td></tr>`).join('')}</tbody></table>
-      <p class="suave pequeno">Clientes: grupo <code translate="no">sac_projeto_login</code> de cada projeto (veja em Projetos). A mudança vale no próximo login da pessoa.</p></div>
+      <p class="suave pequeno">Clientes: grupo <code translate="no">Clientes</code> mais o grupo <code translate="no">Projeto_...</code> de cada projeto (ligue os grupos aos projetos em Projetos). Quem está em Clientes nunca recebe acesso de equipe. Mudanças de grupo valem em até 15 minutos.</p></div>
     <div class="bloco rolagem"><h2>Quem já entrou</h2>${lista.length ? `<table><thead><tr><th>Nome</th><th>Usuário</th><th>Perfil</th><th>E-mail</th><th>Acesso</th><th>Último login</th></tr></thead>
       <tbody>${lista.map(m => `<tr><td>${esc(m.Nome)}</td><td><code translate="no">${esc(m.Login)}</code></td><td>${esc(m.Perfil)}</td><td>${esc(m.Email)}</td>
         <td>${m.Ativo ? 'Ativo' : '<span class="suave">Desativado</span>'}</td><td>${m.UltimoAcesso ? fmtDH(m.UltimoAcesso) : '<span class="suave">nunca</span>'}</td></tr>`).join('')}</tbody></table>`
       : '<p class="suave">Ninguém da equipe entrou pelo LLDAP ainda.</p>'}</div>`;
-  $('#b-adicionar-perfil').onclick = () => formularioPerfil($('#form-novo-perfil'), resultado => {
-    S.base.setores = resultado.setores;
-    equipeLldap(lista);
-  });
 }
 
 // ───────── Configurações (admin) ─────────
@@ -1521,9 +1554,13 @@ function cfgGeral(c) {
 }
 
 function cfgCategorias(c) {
-  $('#cfg').innerHTML = `<div class="cabeca-lista"><div><h2>Categorias do chamado</h2><p class="suave">Organize as opções que o cliente escolhe ao abrir um chamado.</p></div><button type="button" class="btn btn-primario" id="b-nova-categoria">Adicionar categoria</button></div>
+  $('#cfg').innerHTML = `${cabecalhoPainel('projetos', 'Categorias do chamado', 'Organize as opções que o cliente escolhe ao abrir um chamado.',
+      '<button type="button" class="btn btn-primario" id="b-nova-categoria">Adicionar categoria</button>')}
     <div id="form-categoria" hidden></div>
-    <div class="cadastro-cards">${c.categorias.map((nome, i) => `<article class="cadastro-card"><h3>${esc(nome)}</h3><div class="card-acoes"><button type="button" class="btn-link" data-categoria-editar="${i}">Editar</button><button type="button" class="btn-link acao-excluir" data-categoria-excluir="${i}">Excluir</button></div></article>`).join('')}</div>`;
+    ${c.categorias.length ? `<div class="tabela-cadastro"><table><thead><tr><th class="col-n">#</th><th>Categoria</th><th class="col-acoes">Ações</th></tr></thead><tbody>
+      ${c.categorias.map((nome, i) => `<tr><td class="col-n">${i + 1}</td><td class="col-nome">${esc(nome)}</td>
+        <td class="col-acoes">${botaoIcone('editar', 'Editar ' + nome, `data-categoria-editar="${i}"`)}${botaoIcone('excluir', 'Excluir ' + nome, `data-categoria-excluir="${i}"`)}</td></tr>`).join('')}
+      </tbody></table></div>` : '<div class="vazio">Nenhuma categoria. Use <b>Adicionar categoria</b>.</div>'}`;
   const editar = indice => {
     const anterior = indice === undefined ? null : c.categorias[indice];
     const host = $('#form-categoria');
@@ -1560,9 +1597,9 @@ function formularioPerfil(host, aoSalvar, aninhado) {
 function cfgPerfis(c) {
   const perfis = c.perfis || [];
   const descricao = nome => nome === 'Admin' ? 'Administra o SAC, a equipe e as configurações.' : nome === 'N1' ? 'Atende os clientes e encaminha chamados aos setores.' : 'Acessa os chamados encaminhados a este setor.';
-  $('#cfg').innerHTML = `<div class="cabeca-lista"><div><h2>Perfis da equipe</h2><p class="suave">Cadastre setores para organizar os acessos e o encaminhamento de chamados.</p></div><button type="button" class="btn btn-primario" id="b-novo-perfil">Adicionar perfil</button></div><div id="form-perfil" hidden></div>
+  $('#cfg').innerHTML = `<div class="cabeca-lista"><div><h2>Perfis da equipe</h2><p class="suave">${sso() ? 'Os perfis vêm dos grupos sac_ do LLDAP.' : 'Cadastre setores para organizar os acessos e o encaminhamento de chamados.'}</p></div>${sso() ? '' : '<button type="button" class="btn btn-primario" id="b-novo-perfil">Adicionar perfil</button>'}</div><div id="form-perfil" hidden></div>
     <div class="cadastro-cards">${perfis.map((p, i) => `<article class="cadastro-card"><h3>${esc(p.nome)}</h3><p class="suave pequeno">${descricao(p.nome)}</p>${sso() ? `<p class="pequeno">Grupo no LLDAP: <code translate="no">${esc(grupoLldap(p.nome))}</code></p>` : ''}<div class="card-acoes">${p.fixo ? '<span class="suave pequeno">Perfil padrão</span>' : `<button type="button" class="btn-link acao-excluir" data-perfil-excluir="${i}">Excluir</button>`}</div></article>`).join('')}</div>`;
-  $('#b-novo-perfil').onclick = () => formularioPerfil($('#form-perfil'), r => { S.base.setores = r.setores; telaConfig('perfis'); });
+  if ($('#b-novo-perfil')) $('#b-novo-perfil').onclick = () => formularioPerfil($('#form-perfil'), r => { S.base.setores = r.setores; telaConfig('perfis'); });
   $$('[data-perfil-excluir]').forEach(b => b.onclick = async () => {
     const nome = perfis[Number(b.dataset.perfilExcluir)].nome;
     if (!confirmarExclusao(`o perfil "${nome}"`, 'O perfil só pode ser excluído se não houver pessoas ou chamados em andamento usando-o.')) return;
@@ -1572,11 +1609,13 @@ function cfgPerfis(c) {
 }
 
 function cfgModulos(c) {
-  $('#cfg').innerHTML = `<p class="suave">Módulos aparecem para o cliente escolher ao abrir um chamado. Edite um projeto para cadastrar nomes e descrições.</p>
+  $('#cfg').innerHTML = `${cabecalhoPainel('modulos', 'Módulos do sistema', 'Os módulos de cada projeto aparecem para o cliente escolher ao abrir um chamado.')}
     <div id="form-modulos" hidden></div>
-    ${c.projetos.length ? `<div class="bloco rolagem"><table><thead><tr><th>Projeto</th><th>Módulos</th><th>Ações</th></tr></thead><tbody>
-      ${c.projetos.map((pj, i) => `<tr><td><b>${esc(pj.nome)}</b></td><td>${pj.modulos.length ? pj.modulos.length + ' cadastrados' : 'Sem módulos'}</td><td><button class="btn-link" data-editar-modulos="${i}">Editar módulos</button></td></tr>`).join('')}
-      </tbody></table></div>` : '<div class="vazio">Nenhum projeto ainda. Crie ou busque projetos na aba Projetos.</div>'}`;
+    ${c.projetos.length ? `<div class="tabela-cadastro"><table><thead><tr><th class="col-n">#</th><th>Projeto</th><th>Módulos</th><th class="col-acoes">Ações</th></tr></thead><tbody>
+      ${c.projetos.map((pj, i) => `<tr><td class="col-n">${i + 1}</td><td class="col-nome">${esc(pj.nome)}</td>
+        <td>${pj.modulos.length ? esc(pj.modulos.join(', ')) : '<span class="suave">Sem módulos</span>'}</td>
+        <td class="col-acoes">${botaoIcone('editar', 'Editar módulos de ' + pj.nome, `data-editar-modulos="${i}"`)}</td></tr>`).join('')}
+      </tbody></table></div>` : `<div class="vazio">${sso() ? 'Nenhum projeto ainda. Eles vêm dos grupos Projeto_... do LLDAP.' : 'Nenhum projeto ainda. Crie ou busque projetos na aba Projetos.'}</div>`}`;
   $$('[data-editar-modulos]').forEach(b => b.onclick = () => {
     const pj = c.projetos[Number(b.dataset.editarModulos)];
     const painel = $('#form-modulos');
@@ -1682,9 +1721,11 @@ const GUIA = [
   { titulo: 'Acesso pelo Authelia e LLDAP', para: ['Admin'], so: 'authelia', html: `
     <p>Todos entram com a conta Innomaker (auth.innomaker.com.br). O SAC não guarda senhas: as orientações de senha das outras seções não se aplicam.</p>
     <ul><li><b>Equipe</b>: coloque a pessoa no grupo do perfil no LLDAP (<code>sac_admin</code>, <code>sac_n1</code>, <code>sac_software</code>...). No primeiro login, ela aparece em <b>Equipe</b>.</li>
-    <li><b>Clientes</b>: crie o grupo <code>sac_projeto_login</code> do projeto (veja em <b>Projetos</b>) e coloque nele os usuários do cliente. Todos entram no mesmo projeto.</li>
+    <li><b>Projetos</b>: cada grupo <code>Projeto_...</code> do LLDAP vira um projeto do SAC no primeiro login de alguém do grupo (um projeto antigo com o mesmo nome ou código é reaproveitado). Em <b>Projetos &gt; Editar</b>, complete responsável, e-mail e módulos.</li>
+    <li><b>Clientes</b>: o usuário precisa estar no grupo <code>Clientes</code> e no grupo <code>Projeto_...</code> de cada projeto em que participa. Quem participa de vários projetos vê todos e escolhe o projeto ao abrir um chamado.</li>
+    <li><b>Grupos de projeto e equipe</b>: para funcionários, os grupos <code>Projeto_...</code> não mudam nada no SAC; o perfil vem só dos grupos <code>sac_</code>. Quem está em <code>Clientes</code> nunca recebe acesso de equipe.</li>
     <li><b>Tirar o acesso</b>: remova a pessoa do grupo ou desative o usuário no LLDAP. Sair da conta Innomaker ou desativá-la corta o SAC em até 30 segundos; mudanças de grupo valem em até 15 minutos.</li>
-    <li><b>Novo perfil</b>: em <b>Equipe &gt; Adicionar perfil</b>; o nome do grupo aparece na lista.</li></ul>` },
+    <li><b>Perfis</b>: Admin, N1 e os setores Software, Comercial e Financeiro, pelos grupos <code>sac_admin</code>, <code>sac_n1</code>, <code>sac_software</code>, <code>sac_comercial</code> e <code>sac_financeiro</code>.</li></ul>` },
   { titulo: 'Primeiros passos do administrador', para: ['Admin'], html: `
     <ol><li>Entre com o login <b>admin</b> e a senha temporária que chegou no seu e-mail (ou no Registro de execução do Apps Script). O sistema pede para você criar uma senha nova.</li>
     <li>Abra <b>Configurações &gt; Geral</b> e confira o nome do SAC, o telefone, o horário de atendimento e o endereço do app (URL /exec). O endereço vai nos links dos e-mails.</li>

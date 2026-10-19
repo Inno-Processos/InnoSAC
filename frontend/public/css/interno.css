@@ -257,3 +257,50 @@ body.sac-interno :focus-visible { outline: 2px solid var(--acento); outline-offs
   body.sac-interno.sac-equipe main { margin: 0; padding: 0; max-width: none; }
   body.sac-interno .pagina { border: 0; padding: 0; box-shadow: none; }
 }
+
+/* Quadros com tabela: o quadro não tem padding (a tabela encosta nas bordas), mas título e texto precisam de respiro */
+body.sac-interno .bloco.rolagem > h2 { padding: 22px 22px 0; margin: 0 0 4px; }
+body.sac-interno .bloco.rolagem > p { padding: 0 22px; margin: 0 0 16px; }
+body.sac-interno .bloco.rolagem > table + p { padding: 14px 22px 18px; margin: 0; border-top: 1px solid var(--linha); }
+body.sac-interno .bloco.rolagem + .bloco, body.sac-interno .bloco + .bloco.rolagem { margin-top: 20px; }
+body.sac-interno .tabela-chave th:first-child, body.sac-interno .tabela-chave td:first-child { width: 280px; }
+body.sac-interno .bloco.rolagem > table.tabela-chave { min-width: 520px; }
+
+/* Abas de Configurações: aba ativa sublinhada */
+body.sac-interno .sub-abas { gap: 4px; padding-bottom: 0; }
+body.sac-interno .sub-abas button { border-radius: 0; padding: 12px 18px; font-size: 13px; color: var(--suave); border-bottom: 2px solid transparent; margin-bottom: -1px; }
+body.sac-interno .sub-abas button[aria-pressed="true"] { background: transparent; box-shadow: none; color: var(--tinta); font-weight: 700; border-bottom-color: var(--acento); }
+
+/* Telas de cadastro (Categorias, Módulos): cabeçalho com ícone + tabela numerada com ações em ícone */
+body.sac-interno .painel-cab { display: flex; align-items: center; gap: 22px; background: var(--superficie); border: 1px solid var(--linha); border-radius: 14px; padding: 18px 22px; margin-bottom: 18px; box-shadow: 0 2px 6px #23352908; }
+body.sac-interno .painel-cab-ico { width: 64px; height: 64px; flex: none; display: grid; place-items: center; border-radius: 12px; background: var(--acento-claro); color: var(--acento); }
+body.sac-interno .painel-cab-ico .ico { width: 30px; height: 30px; }
+body.sac-interno .painel-cab-texto { flex: 1 1 auto; min-width: 0; }
+body.sac-interno .painel-cab h2 { margin: 0 0 4px; font-size: 1.5rem; }
+body.sac-interno .painel-cab p { margin: 0; color: var(--suave); font-size: 14px; }
+body.sac-interno .painel-cab .btn-primario { padding: 12px 22px; font-size: 14px; flex: none; }
+body.sac-interno .tabela-cadastro { background: var(--superficie); border: 1px solid var(--linha); border-radius: 14px; padding: 6px 12px 10px; overflow-x: auto; box-shadow: 0 2px 6px #23352908; }
+body.sac-interno .tabela-cadastro table { min-width: 480px; }
+body.sac-interno .tabela-cadastro th { background: transparent; font-size: 13px; font-weight: 700; color: var(--texto); padding: 14px 16px 10px; }
+body.sac-interno .tabela-cadastro td { padding: 10px 16px; font-size: 14px; }
+body.sac-interno .tabela-cadastro tbody tr { border-radius: 8px; }
+body.sac-interno .tabela-cadastro tbody tr:hover { background: var(--papel); }
+body.sac-interno .tabela-cadastro .col-n { width: 64px; color: var(--suave); font-variant-numeric: tabular-nums; }
+body.sac-interno .tabela-cadastro td.col-nome { font-weight: 700; }
+body.sac-interno .tabela-cadastro .col-acoes { width: 128px; white-space: nowrap; }
+body.sac-interno .btn-ico { display: inline-grid; place-items: center; width: 42px; height: 36px; padding: 0; border-radius: 8px; cursor: pointer; border: 1px solid color-mix(in srgb, var(--acento) 30%, var(--linha)); background: var(--superficie); color: var(--acento); }
+body.sac-interno .btn-ico + .btn-ico { margin-left: 22px; }
+body.sac-interno .btn-ico:hover { background: var(--acento-claro); }
+body.sac-interno .btn-ico.excluir { border-color: transparent; background: var(--bloqueio-claro); color: var(--bloqueio); }
+body.sac-interno .btn-ico.excluir:hover { border-color: color-mix(in srgb, var(--bloqueio) 40%, transparent); }
+body.sac-interno .btn-ico .ico { width: 18px; height: 18px; }
+@media (max-width: 640px) {
+  body.sac-interno .painel-cab { flex-wrap: wrap; gap: 14px; padding: 16px; }
+  body.sac-interno .painel-cab-ico { width: 48px; height: 48px; }
+  body.sac-interno .painel-cab-texto { flex-basis: calc(100% - 62px); }
+  body.sac-interno .painel-cab .btn-primario { width: 100%; }
+  body.sac-interno .tabela-cadastro table { min-width: 0; }
+  body.sac-interno .tabela-cadastro .col-n { width: 36px; }
+  body.sac-interno .btn-ico + .btn-ico { margin-left: 10px; }
+}
+body.sac-interno .bloco.rolagem > h2 + table { margin-top: 12px; }

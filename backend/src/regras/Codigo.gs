@@ -46,6 +46,7 @@ function listarPerfisEquipe(token) {
 
 function criarPerfilEquipe(token, nome) {
   const eu = exigirAdmin_(sessao_(token));
+  if (modoAuthelia_()) throw new Error('Os perfis vêm dos grupos sac_ do LLDAP.');
   nome = limpa_(nome, 60);
   if (!nome || /[\r\n]/.test(nome)) throw new Error('Informe um nome para o perfil.');
   return comTrava_(function () {
@@ -90,7 +91,10 @@ const ABAS = {
   Equipe: ['Email', 'Nome', 'Perfil', 'Login', 'SenhaHash', 'Sal', 'TrocarSenha', 'Ativo', 'UltimoAcesso',
     'SenhaTempHash', 'SenhaTempSal', 'SenhaTempExpira'],
   Projetos: ['ProjetoId', 'Projeto', 'PastaId', 'Responsavel', 'Email', 'Telefone', 'Login', 'SenhaHash', 'Sal',
-    'TrocarSenha', 'Ativo', 'CriadoEm', 'UltimoAcesso', 'NomePreferido', 'Modulos', 'SenhaTempHash', 'SenhaTempSal', 'SenhaTempExpira'],
+    'TrocarSenha', 'Ativo', 'CriadoEm', 'UltimoAcesso', 'NomePreferido', 'Modulos', 'SenhaTempHash', 'SenhaTempSal', 'SenhaTempExpira',
+    'GrupoLldap'], // GrupoLldap: grupo Projeto_... do LLDAP que dá acesso a este projeto
+  // Pessoas externas que entram pela conta Innomaker (grupo Clientes); Projetos = ProjetoIds separados por vírgula
+  Clientes: ['Login', 'Nome', 'Email', 'Projetos', 'Ativo', 'UltimoAcesso'],
   Chamados: ['Id', 'ProjetoId', 'Projeto', 'Usuario', 'Email', 'Abertura', 'Canal', 'Categoria', 'Modulo',
     'Titulo', 'Descricao', 'Bloqueio', 'Prioridade', 'Setor', 'Status', 'UltimaAtualizacao',
     'UltimaMudancaStatus', 'Prazo', 'AvisoAtrasoEnviado', 'ResolvidoEm', 'FechadoEm', 'FechadoPor',
@@ -590,14 +594,22 @@ function loginLivre_(base, desejado, atual) {
   return l;
 }
 
+// Abas criadas depois da instalação (ex.: Clientes) podem ainda não existir
+function lerSeExistir_(nome) { return ss_().getSheetByName(nome) ? ler_(nome) : []; }
+
+// A mesma pessoa pode ter passado da equipe para cliente (ou o contrário): vale a conta ativa
 function contaPorLogin_(login) {
   login = normLogin_(login);
   if (!login) return null;
-  const m = ler_('Equipe').filter(function (l) { return normLogin_(l.Login) === login; })[0];
-  if (m) return { aba: 'Equipe', linha: m };
-  const pj = ler_('Projetos').filter(function (l) { return normLogin_(l.Login) === login; })[0];
-  return pj ? { aba: 'Projetos', linha: pj } : null;
+  const contas = [];
+  ['Equipe', 'Clientes', 'Projetos'].forEach(function (aba) {
+    const l = lerSeExistir_(aba).filter(function (x) { return normLogin_(x.Login) === login; })[0];
+    if (l) contas.push({ aba: aba, linha: l });
+  });
+  return contas.filter(function (c) { return ativo_(c.linha.Ativo); })[0] || contas[0] || null;
 }
+
+function idsProjetos_(texto) { return String(texto || '').split(',').map(function (s) { return s.trim(); }).filter(String); }
 
 function perfilDaConta_(conta) {
   const l = conta.linha;
@@ -608,10 +620,20 @@ function perfilDaConta_(conta) {
     if (!perfil) return null;
     return { tipo: 'equipe', login: login, email: normEmail_(l.Email), nome: String(l.Nome || login), perfil: perfil };
   }
+  if (conta.aba === 'Clientes') {
+    // Cliente da conta Innomaker: pode participar de vários projetos (grupos Projeto_... do LLDAP)
+    const pjs = idsProjetos_(l.Projetos).map(projetoPorId_).filter(function (pj) { return pj && ativo_(pj.Ativo); });
+    if (!pjs.length) return null;
+    return {
+      tipo: 'cliente', conta: 'Clientes', login: login, email: normEmail_(l.Email), nome: String(l.Nome || login), perfil: 'Cliente',
+      nomePreferido: String(l.Nome || login),
+      projetoIds: pjs.map(function (pj) { return String(pj.ProjetoId); }), projetoId: String(pjs[0].ProjetoId), projeto: String(pjs[0].Projeto)
+    };
+  }
   return {
-    tipo: 'cliente', login: login, email: normEmail_(l.Email), nome: String(l.NomePreferido || l.Responsavel || nomeProjetoCliente_(l.Projeto)), perfil: 'Cliente',
+    tipo: 'cliente', conta: 'Projetos', login: login, email: normEmail_(l.Email), nome: String(l.NomePreferido || l.Responsavel || nomeProjetoCliente_(l.Projeto)), perfil: 'Cliente',
     nomePreferido: String(l.NomePreferido || ''),
-    projetoId: String(l.ProjetoId), projeto: String(l.Projeto)
+    projetoIds: [String(l.ProjetoId)], projetoId: String(l.ProjetoId), projeto: String(l.Projeto)
   };
 }
 
@@ -699,22 +721,79 @@ function trocarSenha(token, atual, nova) {
 
 // ───────────────────────── Login pelo Authelia/LLDAP ─────────────────────────
 // O backend confirma a sessão com o Authelia (cookie authelia_session) e chama entrarExterno_; o navegador não chega aqui.
-// Os grupos do LLDAP definem o acesso: sac_admin, sac_n1 e sac_<setor> para a equipe,
-// sac_projeto_<login do projeto> para os clientes. Quem não está em nenhum grupo sac_ não entra.
+// Grupos do LLDAP:
+//  - Clientes: usuário externo. Vê os projetos cujos grupos Projeto_... ele tem (coluna GrupoLldap em Projetos).
+//  - sac_admin, sac_n1, sac_<setor>: equipe, com o perfil do grupo. Grupos de projeto não mudam nada para a equipe.
+// Quem não é cliente nem está num grupo sac_ não entra.
+
+const GRUPO_CLIENTES = 'clientes';
+const PREFIXO_GRUPO_PROJETO = 'projeto_';
 
 function grupoLldap_(nome) { return 'sac_' + slugLogin_(nome).replace(/\./g, '_'); }
+
+// Com o Authelia (AUTH_MODE=authelia no backend), os projetos vêm dos grupos Projeto_... do LLDAP, não das pastas do Drive
+function modoAuthelia_() { return typeof SAC_AUTH_MODE !== 'undefined' && SAC_AUTH_MODE === 'authelia'; }
+
+// Cada grupo Projeto_... visto num login vira um projeto do SAC (chamar dentro de comTrava_).
+// Um projeto que já existia é reaproveitado quando o nome ou o código bate com o grupo:
+// Projeto_4.2.01_Innoboat ou Projeto_4.2.01 → "4.2.01 - Innoboat"; Projeto_Innoboat → "Innoboat"
+function projetosDosGrupos_(originais) {
+  originais.filter(function (g) { return g.toLowerCase().indexOf(PREFIXO_GRUPO_PROJETO) === 0; }).forEach(function (g) {
+    const lista = ler_('Projetos');
+    if (lista.some(function (pj) { return String(pj.GrupoLldap || '').trim().toLowerCase() === g.toLowerCase(); })) return;
+    const nome = g.slice(PREFIXO_GRUPO_PROJETO.length).replace(/_/g, ' ').trim() || g;
+    const chave = slugLogin_(nome);
+    const codigo = (nome.match(/^\d+(?:\.\d+)+/) || [''])[0];
+    const iguais = lista.filter(function (pj) {
+      const p = String(pj.Projeto).trim();
+      return !pj.GrupoLldap && (slugLogin_(p) === chave || slugLogin_(nomeProjetoCliente_(p)) === chave ||
+        (codigo && nome === codigo && p.indexOf(codigo) === 0 && !/\d/.test(p.charAt(codigo.length))));
+    });
+    if (iguais.length === 1) { atualizar_('Projetos', iguais[0]._linha, { GrupoLldap: g }); return; }
+    inserir_('Projetos', { ProjetoId: novoIdProjeto_(), Projeto: nome, Login: loginLivre_(nome), Ativo: 'SIM', CriadoEm: new Date(),
+      Modulos: ehProjetoLinave_(nome) ? MODULOS_LINAVE.join('\n') : '', GrupoLldap: g });
+    auditar_(SISTEMA, 'Projeto criado pelo LLDAP', g);
+  });
+}
+
+// Instalações anteriores ao login pelo LLDAP ganham a aba Clientes e a coluna GrupoLldap
+function garantirAbasLldap_() {
+  const ss = ss_();
+  if (!ss.getSheetByName('Clientes')) ss.insertSheet('Clientes').getRange(1, 1, 1, ABAS.Clientes.length).setValues([ABAS.Clientes]);
+  garantirColunas_('Projetos');
+}
+
+// Guarda os grupos Projeto_... que já apareceram nos logins, para o admin escolher em Projetos
+function lembrarGruposProjeto_(originais) {
+  const novos = originais.filter(function (g) { return String(g).trim().toLowerCase().indexOf(PREFIXO_GRUPO_PROJETO) === 0; });
+  if (!novos.length) return;
+  const props = PropertiesService.getScriptProperties();
+  let lista = [];
+  try { lista = JSON.parse(props.getProperty('GRUPOS_PROJETO_LLDAP') || '[]'); } catch (e) { }
+  const minus = lista.map(function (g) { return g.toLowerCase(); });
+  novos.forEach(function (g) { g = String(g).trim(); if (minus.indexOf(g.toLowerCase()) < 0) { lista.push(g); minus.push(g.toLowerCase()); } });
+  props.setProperty('GRUPOS_PROJETO_LLDAP', JSON.stringify(lista.sort()));
+}
 
 function entrarExterno_(id) {
   id = id || {};
   const usuario = normLogin_(id.usuario);
   if (!usuario) throw new Error('O Authelia não informou o usuário.');
-  const grupos = (Array.isArray(id.grupos) ? id.grupos : []).map(function (g) { return String(g).trim().toLowerCase(); });
+  const originais = (Array.isArray(id.grupos) ? id.grupos : []).map(function (g) { return String(g).trim(); }).filter(String);
+  const grupos = originais.map(function (g) { return g.toLowerCase(); });
   const email = normEmail_(id.email);
   const nome = limpa_(id.nome, 120) || usuario;
+  // O grupo Clientes vale mais que os grupos sac_: um usuário externo nunca ganha acesso da equipe por engano
+  const ehCliente = grupos.indexOf(GRUPO_CLIENTES) >= 0;
   // Na ordem de perfisEquipe_: quem está em sac_admin e sac_n1 fica Admin
-  const perfil = perfisEquipe_().filter(function (p) { return grupos.indexOf(grupoLldap_(p)) >= 0; })[0];
+  const perfil = ehCliente ? null : perfisEquipe_().filter(function (p) { return grupos.indexOf(grupoLldap_(p)) >= 0; })[0];
+  let recusa = 'Seu usuário "' + usuario + '" ainda não tem acesso ao SAC. Peça ao administrador para incluí-lo no grupo certo do LLDAP.';
   const login = comTrava_(function () {
+    garantirAbasLldap_();
+    lembrarGruposProjeto_(originais);
+    projetosDosGrupos_(originais);
     const membro = ler_('Equipe').filter(function (m) { return normLogin_(m.Login) === usuario; })[0];
+    const cliente = ler_('Clientes').filter(function (c) { return normLogin_(c.Login) === usuario; })[0];
     if (perfil) {
       const campos = { Nome: nome, Email: email, Perfil: perfil, Ativo: 'SIM', UltimoAcesso: new Date() };
       if (membro) atualizar_('Equipe', membro._linha, campos);
@@ -722,26 +801,30 @@ function entrarExterno_(id) {
         if (loginsUsados_()[usuario]) throw new Error('O usuário "' + usuario + '" do LLDAP tem o mesmo nome do login de um projeto. Renomeie um dos dois.');
         inserir_('Equipe', Object.assign({ Login: usuario }, campos));
       }
+      if (cliente && ativo_(cliente.Ativo)) atualizar_('Clientes', cliente._linha, { Ativo: 'NAO' });
       return usuario;
     }
     if (membro && ativo_(membro.Ativo)) { // saiu dos grupos da equipe: as sessões abertas param de valer
       atualizar_('Equipe', membro._linha, { Ativo: 'NAO' });
       esquecerPerfil_(usuario);
     }
-    const projetos = ler_('Projetos').filter(function (pj) { return pj.Login && grupos.indexOf(grupoLldap_('projeto ' + pj.Login)) >= 0; });
-    if (projetos.length > 1) throw new Error('Seu usuário está em mais de um grupo de projeto (sac_projeto_...). Fale com o atendimento.');
-    if (!projetos.length) return null;
-    const pj = projetos[0];
-    // O primeiro acesso preenche o cadastro do projeto com os dados do LLDAP
-    const campos = { UltimoAcesso: new Date() };
-    if (!pj.Email && email) campos.Email = email;
-    if (!pj.NomePreferido && id.nome) campos.NomePreferido = limpa_(id.nome, 60);
-    atualizar_('Projetos', pj._linha, campos);
-    return normLogin_(pj.Login);
+    const projetos = !ehCliente ? [] : ler_('Projetos').filter(function (pj) {
+      return ativo_(pj.Ativo) && pj.GrupoLldap && grupos.indexOf(String(pj.GrupoLldap).trim().toLowerCase()) >= 0;
+    });
+    if (!projetos.length) {
+      if (cliente && ativo_(cliente.Ativo)) { atualizar_('Clientes', cliente._linha, { Ativo: 'NAO' }); esquecerPerfil_(usuario); }
+      if (ehCliente) recusa = 'Sua conta Innomaker ainda não está ligada a nenhum projeto do SAC. Fale com o atendimento.';
+      return null;
+    }
+    const campos = { Nome: nome, Email: email, Ativo: 'SIM', UltimoAcesso: new Date(),
+      Projetos: projetos.map(function (pj) { return String(pj.ProjetoId); }).join(',') };
+    if (cliente) atualizar_('Clientes', cliente._linha, campos);
+    else inserir_('Clientes', Object.assign({ Login: usuario }, campos));
+    return usuario;
   });
   if (!login) {
-    auditar_({ login: usuario, perfil: '?' }, 'Login recusado', 'Authelia: nenhum grupo sac_ (' + grupos.join(', ') + ')');
-    throw new Error('Seu usuário "' + usuario + '" ainda não tem acesso ao SAC. Peça ao administrador para incluí-lo num grupo sac_ no LLDAP.');
+    auditar_({ login: usuario, perfil: ehCliente ? 'Cliente' : '?' }, 'Login recusado', 'Authelia: grupos ' + originais.join(', '));
+    throw new Error(recusa);
   }
   esquecerPerfil_(login);
   const p = identificar_(login);
@@ -750,6 +833,27 @@ function entrarExterno_(id) {
   const token = Utilities.getUuid() + Utilities.getUuid();
   CacheService.getScriptCache().put('sess:' + token, JSON.stringify({ login: login, trocar: false, sso: usuario }), 21600);
   return { token: token };
+}
+
+// Grupos Projeto_... já vistos nos logins e o projeto ligado a cada um (para a tela Projetos)
+function gruposProjetoLldap(token) {
+  exigirAdmin_(sessao_(token));
+  let vistos = [];
+  try { vistos = JSON.parse(PropertiesService.getScriptProperties().getProperty('GRUPOS_PROJETO_LLDAP') || '[]'); } catch (e) { }
+  const usados = {};
+  ler_('Projetos').forEach(function (pj) { if (pj.GrupoLldap) usados[String(pj.GrupoLldap).trim().toLowerCase()] = String(pj.Projeto); });
+  return vistos.map(function (g) { return { grupo: g, projeto: usados[g.toLowerCase()] || '' }; });
+}
+
+// Clientes da conta Innomaker que já entraram (para a tela Projetos)
+function listarClientesLldap(token) {
+  exigirAdmin_(sessao_(token));
+  const nomes = {};
+  ler_('Projetos').forEach(function (pj) { nomes[String(pj.ProjetoId)] = String(pj.Projeto); });
+  return lerSeExistir_('Clientes').map(function (c) {
+    return pub_({ Login: c.Login, Nome: c.Nome, Email: c.Email, Ativo: ativo_(c.Ativo), UltimoAcesso: c.UltimoAcesso,
+      projetos: idsProjetos_(c.Projetos).map(function (i) { return nomes[i] || i; }) });
+  });
 }
 
 function emailAdmin_() {
@@ -882,15 +986,25 @@ function dadosPublicos() {
   };
 }
 
+// Projetos que o cliente enxerga (sessões antigas guardavam só projetoId)
+function projetosDe_(p) { return p.projetoIds || (p.projetoId ? [String(p.projetoId)] : []); }
+
 function iniciar(token) {
   const p = sessao_(token);
   const c = cfg_();
+  const pjs = p.tipo === 'cliente' ? projetosDe_(p).map(projetoPorId_).filter(Boolean) : [];
+  const vistos = {};
+  const manuais = p.tipo !== 'cliente' ? manuais_(null, 'equipe') : [].concat.apply([], pjs.map(function (pj) { return manuais_(pj, 'cliente'); }))
+    .filter(function (m) { const k = m.titulo + '|' + m.link; if (vistos[k]) return false; vistos[k] = true; return true; });
   return {
-    usuario: { tipo: p.tipo, nome: p.tipo === 'cliente' && p.nome === p.projeto ? nomeProjetoCliente_(p.nome) : p.nome, login: p.login, email: p.email, perfil: p.perfil, projeto: p.tipo === 'cliente' ? nomeProjetoCliente_(p.projeto) : (p.projeto || ''), admin: p.perfil === 'Admin', n1: ehN1_(p),
-      cadastroIncompleto: p.tipo === 'cliente' && (!p.email || !p.nomePreferido) },
+    usuario: { tipo: p.tipo, nome: p.tipo === 'cliente' && p.nome === p.projeto ? nomeProjetoCliente_(p.nome) : p.nome, login: p.login, email: p.email, perfil: p.perfil,
+      projeto: p.tipo !== 'cliente' ? (p.projeto || '') : pjs.length > 2 ? pjs.length + ' projetos' : pjs.map(function (pj) { return nomeProjetoCliente_(pj.Projeto); }).join(' · '),
+      admin: p.perfil === 'Admin', n1: ehN1_(p), contaLldap: p.conta === 'Clientes',
+      cadastroIncompleto: p.tipo === 'cliente' && p.conta !== 'Clientes' && (!p.email || !p.nomePreferido) },
     categorias: lista_('Categorias', 'Categoria', CATEGORIAS_PADRAO),
-    modulos: p.tipo === 'cliente' ? modulosDoProjeto_(projetoPorId_(p.projetoId)) : [],
-    manuais: p.tipo === 'cliente' ? manuais_(projetoPorId_(p.projetoId), 'cliente') : manuais_(null, 'equipe'),
+    modulos: pjs.length ? modulosDoProjeto_(pjs[0]) : [],
+    projetos: pjs.map(function (pj) { return { id: String(pj.ProjetoId), nome: nomeProjetoCliente_(pj.Projeto), modulos: modulosDoProjeto_(pj) }; }),
+    manuais: manuais,
     status: LISTA_STATUS, setores: setores_(),
     prazoNormal: c.PRAZO_NORMAL_DIAS_UTEIS, diasAutoFechamento: c.DIAS_UTEIS_AUTOFECHAMENTO,
     diasReabertura: c.DIAS_UTEIS_REABERTURA
@@ -908,7 +1022,7 @@ function obterChamado_(id) {
 }
 
 function podeVer_(p, ch) {
-  if (p.tipo === 'cliente') return String(ch.ProjetoId) === String(p.projetoId);
+  if (p.tipo === 'cliente') return projetosDe_(p).indexOf(String(ch.ProjetoId)) >= 0;
   if (ehN1_(p)) return true;
   return ch.Setor === p.perfil && ch.Status === STATUS.ENCAMINHADO;
 }
@@ -976,7 +1090,7 @@ function resumo_(ch, p, pesquisas) {
     Prioridade: ch.Prioridade, Abertura: ch.Abertura, UltimaAtualizacao: ch.UltimaAtualizacao, Prazo: ch.Prazo,
     atrasado: ch.Prazo instanceof Date && agora > ch.Prazo && FINAIS.indexOf(ch.Status) < 0 && ch.Status !== STATUS.RESOLVIDO
   };
-  if (p.tipo === 'cliente') r.pesquisaPendente = pesquisaPendente_(ch, pesquisas);
+  if (p.tipo === 'cliente') { r.pesquisaPendente = pesquisaPendente_(ch, pesquisas); r.ProjetoId = ch.ProjetoId; r.Projeto = nomeProjetoCliente_(ch.Projeto); }
   else { r.Projeto = ch.Projeto; r.Setor = ch.Setor; r.Canal = ch.Canal; }
   return pub_(r);
 }
@@ -1010,7 +1124,7 @@ function meusChamados(token) {
   const pesquisas = ler_('Pesquisa');
   const novas = naoLidas_(p);
   return ler_('Chamados')
-    .filter(function (c) { return String(c.ProjetoId) === String(p.projetoId); })
+    .filter(function (c) { return projetosDe_(p).indexOf(String(c.ProjetoId)) >= 0; })
     .sort(function (a, b) { return b.Abertura - a.Abertura; })
     .map(function (c) { const r = resumo_(c, p, pesquisas); r.naoLidas = novas[c.Id] || 0; return r; });
 }
@@ -1070,9 +1184,16 @@ function abrirChamado(token, d) {
   d = d || {};
   let cli, mods;
   if (p.tipo === 'cliente') {
-    if (!p.email) throw new Error('Cadastre e confirme o seu e-mail em Meu cadastro antes de abrir um chamado: é por ele que você recebe os avisos.');
-    cli = { ProjetoId: p.projetoId, Projeto: p.projeto, Usuario: p.nome, Email: p.email };
-    mods = modulosDoProjeto_(projetoPorId_(p.projetoId));
+    if (!p.email) throw new Error(p.conta === 'Clientes'
+      ? 'Sua conta Innomaker não tem e-mail cadastrado. Peça ao atendimento para incluí-lo: é por ele que você recebe os avisos.'
+      : 'Cadastre e confirme o seu e-mail em Meu cadastro antes de abrir um chamado: é por ele que você recebe os avisos.');
+    const meus = projetosDe_(p);
+    const id = d.projetoId ? String(d.projetoId) : (meus.length === 1 ? meus[0] : '');
+    if (!id) throw new Error('Escolha o projeto do chamado.');
+    const pj = meus.indexOf(id) >= 0 ? projetoPorId_(id) : null;
+    if (!pj || !ativo_(pj.Ativo)) throw new Error('Você não participa deste projeto.');
+    cli = { ProjetoId: pj.ProjetoId, Projeto: pj.Projeto, Usuario: p.nome, Email: p.email };
+    mods = modulosDoProjeto_(pj);
   } else {
     exigirN1_(p);
     const pj = projetoPorId_(d.projetoId);
@@ -1546,6 +1667,7 @@ function responderPesquisa(cred, id, nota, resolvido, comentario) {
 
 function projetoDoUsuario_(p) {
   if (p.tipo !== 'cliente') throw new Error('Tela exclusiva do projeto.');
+  if (p.conta === 'Clientes') throw new Error('Seu nome e e-mail vêm da conta Innomaker. Para mudar, fale com o atendimento.');
   const pj = projetoPorId_(p.projetoId);
   if (!pj) throw new Error('Projeto não encontrado.');
   return pj;
@@ -1995,8 +2117,9 @@ function criarProjetoInterno_(nome, pastaId, d) {
     Modulos: d.modulos !== undefined ? serializarModulos_(d.modulos) : (ehProjetoLinave_(nome) ? MODULOS_LINAVE.join('\n') : '')
   };
   Object.assign(campos, camposSenha_(senha, true));
+  if (d.grupoLldap) { garantirColunas_('Projetos'); campos.GrupoLldap = grupoProjetoLivre_(d.grupoLldap, campos.ProjetoId); }
   inserir_('Projetos', campos);
-  return { projetoId: campos.ProjetoId, projeto: nome, login: login, senha: senha, email: campos.Email };
+  return { projetoId: campos.ProjetoId, projeto: nome, login: login, senha: senha, email: campos.Email, grupoLldap: campos.GrupoLldap || '' };
 }
 
 // Toda pasta da pasta geral sem projeto vinculado vira um projeto com login (chamar dentro de comTrava_)
@@ -2048,7 +2171,7 @@ function resumoProjeto_(pj) {
     ProjetoId: pj.ProjetoId, Projeto: pj.Projeto, Responsavel: pj.Responsavel, NomePreferido: pj.NomePreferido || '', Email: pj.Email, Telefone: pj.Telefone,
     Login: pj.Login, Ativo: ativo_(pj.Ativo), UltimoAcesso: pj.UltimoAcesso, CriadoEm: pj.CriadoEm, modulos: modulosDoProjeto_(pj),
     modulosDetalhes: detalhesModulos_(pj.Modulos),
-    senhaTemporaria: String(pj.TrocarSenha).toUpperCase() === 'SIM',
+    senhaTemporaria: String(pj.TrocarSenha).toUpperCase() === 'SIM', GrupoLldap: String(pj.GrupoLldap || ''),
     pastaUrl: pj.PastaId ? 'https://drive.google.com/drive/folders/' + pj.PastaId : ''
   });
 }
@@ -2058,8 +2181,11 @@ function listarProjetos(token) {
   return ler_('Projetos').map(resumoProjeto_).sort(function (a, b) { return String(a.Projeto).localeCompare(String(b.Projeto), 'pt-BR'); });
 }
 
+const SO_PROJETOS_DO_DRIVE = 'Os projetos vêm dos grupos Projeto_... do LLDAP: crie o grupo no LLDAP e ele aparece no SAC no próximo login de alguém do grupo.';
+
 function sincronizarProjetos(token) {
   const eu = exigirAdmin_(sessao_(token));
+  if (modoAuthelia_()) throw new Error(SO_PROJETOS_DO_DRIVE);
   auditar_(eu, 'Busca de pastas novas', resumoArgs_(arguments));
   const novos = comTrava_(sincronizarProjetos_);
   return novos.map(function (n) { return { projeto: n.projeto, login: n.login, senha: n.senha }; });
@@ -2067,6 +2193,7 @@ function sincronizarProjetos(token) {
 
 function criarProjeto(token, d) {
   const eu = exigirAdmin_(sessao_(token));
+  if (modoAuthelia_()) throw new Error(SO_PROJETOS_DO_DRIVE);
   auditar_(eu, 'Projeto criado', resumoArgs_(arguments));
   d = d || {};
   if (!d.pastaId) throw new Error('Selecione a pasta do projeto.');
@@ -2099,13 +2226,28 @@ function salvarProjeto(token, d) {
     const pj = projetoPorId_(d.ProjetoId);
     if (!pj) throw new Error('Projeto não encontrado.');
     const login = loginLivre_(pj.Projeto, d.Login || pj.Login, pj.Login);
-    atualizar_('Projetos', pj._linha, {
+    const campos = {
       Responsavel: limpa_(d.Responsavel, 120), Email: email, Telefone: limpa_(d.Telefone, 40),
       Login: login, Ativo: d.Ativo === false ? 'NAO' : 'SIM', Modulos: serializarModulos_(d.Modulos)
-    });
+    };
+    if (d.GrupoLldap !== undefined) campos.GrupoLldap = grupoProjetoLivre_(d.GrupoLldap, pj.ProjetoId);
+    garantirColunas_('Projetos');
+    atualizar_('Projetos', pj._linha, campos);
     esquecerPerfil_(pj.Login); esquecerPerfil_(login);
     return 'Projeto salvo.';
   });
+}
+
+// Cada grupo Projeto_... do LLDAP aponta para um só projeto
+function grupoProjetoLivre_(valor, projetoId) {
+  const grupo = limpa_(valor, 120);
+  if (!grupo) return '';
+  if (/[\s,]/.test(grupo)) throw new Error('O nome do grupo do LLDAP não pode ter espaços nem vírgulas.');
+  const outro = ler_('Projetos').filter(function (pj) {
+    return String(pj.ProjetoId) !== String(projetoId) && String(pj.GrupoLldap || '').trim().toLowerCase() === grupo.toLowerCase();
+  })[0];
+  if (outro) throw new Error('O grupo "' + grupo + '" já está ligado ao projeto ' + outro.Projeto + '.');
+  return grupo;
 }
 
 function redefinirSenhaAcesso(token, tipo, chave, enviarEmail) {
@@ -2191,7 +2333,7 @@ function rotinaHoraria() {
   const agora = new Date();
   const c = cfg_();
   const envios = [];
-  if (String(c.BUSCAR_PROJETOS_NOVOS).toUpperCase() === 'SIM') {
+  if (!modoAuthelia_() && String(c.BUSCAR_PROJETOS_NOVOS).toUpperCase() === 'SIM') {
     try {
       const novos = comTrava_(sincronizarProjetos_);
       if (novos.length) {
@@ -2359,15 +2501,22 @@ function enviarEmail_(para, assunto, html) {
   }
 }
 
+// Quem abriu pela conta Innomaker recebe os avisos no próprio nome e e-mail (vários clientes por projeto);
+// nos chamados do login do projeto ou por telefone, vale o cadastro do projeto
+function abertoPorClienteLldap_(ch) {
+  const email = normEmail_(ch.Email);
+  return !!email && lerSeExistir_('Clientes').some(function (c) { return normEmail_(c.Email) === email; });
+}
+
 function nomeCliente_(ch) {
   const pj = projetoPorId_(ch.ProjetoId);
-  const nome = String((pj && (pj.NomePreferido || pj.Responsavel)) || ch.Usuario || ch.Projeto || '');
+  const nome = String((!abertoPorClienteLldap_(ch) && pj && (pj.NomePreferido || pj.Responsavel)) || ch.Usuario || ch.Projeto || '');
   return nome === ch.Projeto || (pj && nome === pj.Projeto) ? nomeProjetoCliente_(nome) : nome;
 }
 
 function emailCliente_(ch) {
   const pj = projetoPorId_(ch.ProjetoId);
-  return pj && pj.Email ? normEmail_(pj.Email) : normEmail_(ch.Email);
+  return pj && pj.Email && !abertoPorClienteLldap_(ch) ? normEmail_(pj.Email) : normEmail_(ch.Email);
 }
 
 function emailsEquipe_(perfil) {

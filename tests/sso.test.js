@@ -46,9 +46,10 @@ async function main() {
   const env = { ...process.env, DATA_DIR: fs.mkdtempSync(path.join(os.tmpdir(), 'sac-authelia-')), SMTP_HOST: '',
     API_PORT: String(apiPorta), WEB_PORT: String(webPorta), API_URL: `http://127.0.0.1:${apiPorta}`, PUBLIC_API_URL: '',
     PUBLIC_URL: web, AUTH_MODE: 'authelia', AUTHELIA_URL: aut.url };
+  // Projects from before the LLDAP: created at install time from the Drive folders
+  for (const pasta of ['4.2.16 Marinha - USV', '4.2.01 - Innoboat']) fs.mkdirSync(path.join(env.DATA_DIR, 'drive', 'Projetos', pasta), { recursive: true });
   const inst = spawnSync(process.execPath, ['src/cli.js', 'instalar'], { cwd: path.join(raiz, 'backend'), env, encoding: 'utf8' });
   assert.equal(inst.status, 0, inst.stderr);
-  fs.mkdirSync(path.join(env.DATA_DIR, 'drive', 'Projetos', '4.2.16 Marinha - USV'), { recursive: true });
 
   const filhos = [];
   try {
@@ -97,14 +98,62 @@ async function main() {
     const evil = await fetch(`${web}/api/iniciar`, { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: 'https://evil.innomaker.com.br', Cookie: 'authelia_session=sessao-chefe' }, body: '{"args":[]}' });
     assert.equal(evil.status, 403, 'Calls from another origin are refused.');
 
-    // Clients: sac_projeto_<project login>; several LLDAP users share the project
-    assert.deepEqual((await post('sessao-chefe', 'sincronizarProjetos')).corpo.resultado.map(p => p.login), ['4.2.16.marinha.usv']);
-    aut.sessoes.set('sessao-joao', { usuario: 'joao', nome: 'João', email: 'joao@cliente.com', grupos: ['sac_projeto_4_2_16_marinha_usv'] });
-    aut.sessoes.set('sessao-maria', { usuario: 'maria', nome: 'Maria', email: 'maria@cliente.com', grupos: ['sac_projeto_4_2_16_marinha_usv'] });
-    eu = (await post('sessao-joao', 'iniciar')).corpo.resultado.usuario;
-    assert.deepEqual([eu.tipo, eu.login, eu.projeto, eu.email, eu.cadastroIncompleto], ['cliente', '4.2.16.marinha.usv', 'Marinha - USV', 'joao@cliente.com', false]);
-    assert.equal((await post('sessao-maria', 'iniciar')).corpo.resultado.usuario.login, '4.2.16.marinha.usv');
+    // Projects come from the LLDAP Projeto_... groups; Drive folders and "Criar projeto" are off
+    assert.match((await post('sessao-chefe', 'sincronizarProjetos')).corpo.erro, /grupos Projeto_/);
+    assert.match((await post('sessao-chefe', 'criarProjeto', 'x', { pastaId: 'x' })).corpo.erro, /grupos Projeto_/);
+    assert.match((await post('sessao-chefe', 'criarPerfilEquipe', 'x', 'Novo')).corpo.erro, /grupos sac_/);
+    const antigos = (await post('sessao-chefe', 'listarProjetos')).corpo.resultado;
+    const marinha = antigos.find(p => p.Projeto === '4.2.16 Marinha - USV'), innoboat = antigos.find(p => p.Projeto === '4.2.01 - Innoboat');
+    assert(marinha && innoboat, 'Projects created at install time from the Drive folders.');
+
+    // A staff login brings its project groups: existing projects are reused by name or code, others are created
+    aut.sessoes.set('sessao-func', { usuario: 'func', nome: 'Func', grupos: ['sac_software', 'Projeto_Marinha_USV', 'Projeto_4.2.01', 'Projeto_Novo_Cliente'] });
+    assert.equal((await post('sessao-func', 'iniciar')).corpo.resultado.usuario.perfil, 'Software', 'Project groups change nothing for staff.');
+    let projetos = (await post('sessao-chefe', 'listarProjetos')).corpo.resultado;
+    const grupoDe = nome => (projetos.find(p => p.Projeto === nome) || {}).GrupoLldap;
+    assert.equal(projetos.length, 3);
+    assert.equal(grupoDe('4.2.16 Marinha - USV'), 'Projeto_Marinha_USV', 'Reused by name.');
+    assert.equal(grupoDe('4.2.01 - Innoboat'), 'Projeto_4.2.01', 'Reused by code.');
+    assert.equal(grupoDe('Novo Cliente'), 'Projeto_Novo_Cliente', 'New group, new project.');
+    const ligar = (pj, grupo) => post('sessao-chefe', 'salvarProjeto', 'x', { ProjetoId: pj.ProjetoId, Login: pj.Login, Ativo: true, Modulos: [], GrupoLldap: grupo });
+    assert.match((await ligar(innoboat, 'projeto_marinha_usv')).corpo.erro, /já está ligado/, 'A group points to a single project.');
+
+    // Clients: global "Clientes" group + one Projeto_... group per project
+    aut.sessoes.set('sessao-joao', { usuario: 'joao', nome: 'João', email: 'joao@cliente.com', grupos: ['Clientes', 'Projeto_Marinha_USV'] });
+    aut.sessoes.set('sessao-maria', { usuario: 'maria', nome: 'Maria', email: 'maria@cliente.com', grupos: ['clientes', 'projeto_marinha_usv', 'Projeto_4.2.01'] });
+    let base = (await post('sessao-joao', 'iniciar')).corpo.resultado;
+    eu = base.usuario;
+    assert.deepEqual([eu.tipo, eu.login, eu.nome, eu.projeto, eu.email, eu.cadastroIncompleto, eu.contaLldap], ['cliente', 'joao', 'João', 'Marinha - USV', 'joao@cliente.com', false, true]);
+    assert.deepEqual(base.projetos.map(p => p.id), [marinha.ProjetoId], 'The existing project (and its tickets) is kept.');
+    base = (await post('sessao-maria', 'iniciar')).corpo.resultado;
+    assert.deepEqual(base.projetos.map(p => p.nome).sort(), ['Innoboat', 'Marinha - USV'], 'A client sees every project of their groups.');
     assert.equal((await post('sessao-joao', 'listarProjetos')).status, 400, 'Clients are not admins.');
+    assert.equal((await post('sessao-joao', 'meuCadastro')).status, 400, 'Name and e-mail come from the LLDAP account.');
+
+    // Opening tickets: a single-project client needs no choice; a multi-project client must pick one of theirs
+    const novo = projetoId => ({ projetoId, categoria: base.categorias[0], titulo: 'Teste', descricao: 'Descrição', bloqueio: 'Não' });
+    const chJoao = (await post('sessao-joao', 'abrirChamado', 'x', novo(''))).corpo.resultado;
+    assert.match((await post('sessao-maria', 'abrirChamado', 'x', novo(''))).corpo.erro, /Escolha o projeto/);
+    assert.match((await post('sessao-joao', 'abrirChamado', 'x', novo(innoboat.ProjetoId))).corpo.erro, /não participa/);
+    const chMaria = (await post('sessao-maria', 'abrirChamado', 'x', novo(innoboat.ProjetoId))).corpo.resultado;
+    assert.deepEqual((await post('sessao-maria', 'meusChamados')).corpo.resultado.map(c => c.Id).sort(), [chJoao, chMaria].sort());
+    assert.deepEqual((await post('sessao-joao', 'meusChamados')).corpo.resultado.map(c => c.Id), [chJoao]);
+    assert.equal((await post('sessao-joao', 'detalheChamado', 'x', chMaria)).status, 400, 'Clients only see their projects.');
+    const detalhe = (await post('sessao-chefe', 'detalheChamado', 'x', chMaria)).corpo.resultado.chamado;
+    assert.deepEqual([detalhe.Projeto, detalhe.Usuario, detalhe.Email], ['4.2.01 - Innoboat', 'Maria', 'maria@cliente.com']);
+    assert(fs.readdirSync(path.join(env.DATA_DIR, 'emails')).some(f => f.includes('maria@cliente.com')), 'The client who opened the ticket gets the notice.');
+
+    // The admin sees the Projeto_ groups seen at login and the clients who came in
+    const vistos = (await post('sessao-chefe', 'gruposProjetoLldap')).corpo.resultado;
+    assert.deepEqual(vistos.map(g => g.grupo + '=' + g.projeto).sort(), ['Projeto_4.2.01=4.2.01 - Innoboat', 'Projeto_Marinha_USV=4.2.16 Marinha - USV', 'Projeto_Novo_Cliente=Novo Cliente']);
+    const clientes = (await post('sessao-chefe', 'listarClientesLldap')).corpo.resultado;
+    assert.deepEqual(clientes.find(c => c.Login === 'maria').projetos.sort(), ['4.2.01 - Innoboat', '4.2.16 Marinha - USV']);
+
+    // "Clientes" wins over sac_ groups; a client without any project group is refused with a clear reason
+    aut.sessoes.set('sessao-externo', { usuario: 'externo', nome: 'Externo', email: 'e@cliente.com', grupos: ['Clientes', 'sac_admin', 'Projeto_Marinha_USV'] });
+    assert.equal((await post('sessao-externo', 'iniciar')).corpo.resultado.usuario.tipo, 'cliente');
+    aut.sessoes.set('sessao-solto', { usuario: 'solto', grupos: ['Clientes'] });
+    assert.match(estadoLanding(await pagina('sessao-solto')).erro, /não está ligada a nenhum projeto/);
 
     // Logged in, but without a sac_ group (or blocked by Authelia rules): landing page with the reason
     aut.sessoes.set('sessao-ana-sem-grupo', { usuario: 'ana', nome: 'Ana Souza', email: 'ana@innomaker.com.br', grupos: ['outros'] });
@@ -139,7 +188,7 @@ async function main() {
     process.env.DATA_DIR = env.DATA_DIR;
     const { criarExecutor } = require('../backend/src/nucleo/executor');
     const regras = criarExecutor(fs.readFileSync(path.join(raiz, 'backend/src/regras/Codigo.gs'), 'utf8'), { ativo: false, despachar() {} });
-    for (const nome of ['Admin', 'N1', 'Suporte de Campo', 'Pós-venda', 'projeto 4.2.16.marinha.usv', 'projeto 4-2_01']) {
+    for (const nome of ['Admin', 'N1', 'Suporte de Campo', 'Pós-venda', 'Suporte de campo 2']) {
       assert.equal(vm.runInContext(`grupoLldap(${JSON.stringify(nome)})`, ctx), regras.executar('grupoLldap_', [nome]), nome);
     }
   } finally { filhos.forEach(f => { f.removeAllListeners('exit'); f.kill(); }); aut.servidor.close(); }

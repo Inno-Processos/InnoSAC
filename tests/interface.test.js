@@ -42,6 +42,8 @@ async function main() {
       if (fn === 'listarPastasProjetos') return [{ id: 'folder-2', nome: 'Outro projeto', vinculada: false }];
       if (fn === 'listarEquipe') return [{ Nome: 'Ana', Email: 'ana@example.com', Login: 'ana', Perfil: 'N1', Ativo: true }];
       if (fn === 'configuracoes') return config;
+      if (fn === 'gruposProjetoLldap') return [{ grupo: 'Projeto_Livre', projeto: '' }, { grupo: 'Projeto_Usado', projeto: 'Outro' }];
+      if (fn === 'listarClientesLldap') return [{ Nome: 'Maria', Login: 'maria', Email: 'maria@cliente.com', Ativo: true, projetos: ['4.2.01 - Teste'] }];
       if (fn === 'salvarProjeto') throw new Error('Falha simulada ao salvar');
       return true;
     }
@@ -152,11 +154,35 @@ async function main() {
   assert($('#btn-sair'));
   await run('telaProjetos()');
   assert.equal($('[data-senha]'), null);
-  assert.match($('#app').innerHTML, /sac_projeto_teste/);
+  assert.match($('#app').innerHTML, /não definido/);
+  for (const id of ['#b-sinc', '#b-novo-pj']) assert.equal($(id), null, id + ': projects come from LLDAP groups.');
+  assert.match($('#app').innerHTML, /Clientes que já entraram[\s\S]*maria@cliente\.com/);
+  $('[data-editar]').onclick();
+  assert($('#pj-grupo'), 'The project form asks for the LLDAP group.');
+  assert.deepEqual([...document.querySelectorAll('#pj-grupos option')].map(o => o.getAttribute('value')), ['Projeto_Livre'], 'Only unlinked groups are suggested.');
+  run('fecharEditor()');
   await run('telaEquipeAdmin()');
   assert.equal($('#b-nova-pessoa'), null);
+  assert.equal($('#b-adicionar-perfil'), null, 'Profiles come from LLDAP groups.');
   assert.equal($('[data-editar]'), null);
   for (const grupo of ['sac_admin', 'sac_n1', 'sac_software']) assert.match($('#app').innerHTML, new RegExp(grupo));
+  // Client in two projects (Authelia): picks the project when opening a ticket and filters the list by project
+  ctx.cliente = { tipo: 'cliente', nome: 'Maria', login: 'maria', perfil: 'Cliente', projeto: 'A · B', contaLldap: true };
+  run(`S.usuario = cliente; S.base = { categorias: ['Dúvida'], status: ['Aberto'], manuais: [], modulos: [], diasAutoFechamento: 5, diasReabertura: 5, prazoNormal: 3,
+    projetos: [{ id: 'PRJ-A', nome: 'A', modulos: ['Compras'] }, { id: 'PRJ-B', nome: 'B', modulos: [] }] };
+    S.publico.horaInicio = 9; S.publico.horaFim = 16; topo();`);
+  assert.equal($('#btn-cadastro'), null, 'LLDAP clients have no "Meu cadastro".');
+  await run('telaNovoChamado(false)');
+  assert.deepEqual([...document.querySelectorAll('#n-cliente option')].map(o => o.getAttribute('value')), ['', 'PRJ-A', 'PRJ-B']);
+  $('#n-cliente option[value="PRJ-A"]').setAttribute('selected', ''); $('#n-cliente').onchange();
+  assert.equal($('#campo-modulo').hidden, false, 'Modules follow the chosen project.');
+  const meus = [{ Id: 'CH-A', ProjetoId: 'PRJ-A', Projeto: 'A', Titulo: 'Tem A', Status: 'Aberto', Categoria: 'Dúvida' }, { Id: 'CH-B', ProjetoId: 'PRJ-B', Projeto: 'B', Titulo: 'Tem B', Status: 'Aberto', Categoria: 'Dúvida' }];
+  ctx.mockApi = async fn => fn === 'meusChamados' ? meus : true;
+  await run('api = mockApi; telaCliente()');
+  assert($('#f-projeto'));
+  $('#f-projeto option[value="PRJ-B"]').setAttribute('selected', ''); $('#f-projeto').oninput();
+  assert.match($('#lista').innerHTML, /Tem B/);
+  assert.doesNotMatch($('#lista').innerHTML, /Tem A/);
   run("S.auth = null;");
   console.log('OK: navegação, edição/criação em modal, lista oculta, cancelamento, erro de gravação e confirmações de exclusão.');
 }

@@ -96,7 +96,7 @@ navegador ──(cookie authelia_session)──> frontend ──> backend ──
 - **Sem sessão no Authelia:** o endereço do SAC mostra só a landing page (`frontend/public/landing.html`), com o
   botão **Entrar com a conta Innomaker**. Depois do login, o Authelia devolve a pessoa para a página que ela abriu.
 - **Com sessão:** o SAC abre direto, com o perfil definido pelos grupos do LLDAP.
-- **Com sessão, mas sem grupo `sac_`:** a landing page explica que o acesso não foi liberado e oferece entrar com outra conta.
+- **Com sessão, mas sem acesso** (nem cliente com projeto, nem grupo `sac_`): a landing page explica o motivo e oferece entrar com outra conta.
 - Cada chamada à API é conferida: sair da conta Innomaker corta o SAC em até 30 segundos;
   mudanças de grupo valem em até 15 minutos. **Sair** no SAC também sai da conta Innomaker.
 - Os links da pesquisa de satisfação e dos manuais continuam abrindo sem login.
@@ -120,20 +120,27 @@ O `bypass` é necessário quando o forward auth do Authelia está ligado para to
 sem ele, o Traefik manda direto para a tela de login do Authelia e a landing page nunca aparece.
 Não é preciso cadastrar cliente OIDC nem gerar segredo.
 
-**2. Grupos no LLDAP.** Quem não estiver em nenhum grupo `sac_` não entra.
+**2. Grupos no LLDAP.**
 
-| Grupo no LLDAP                    | Acesso no SAC                                             |
-|-----------------------------------|-----------------------------------------------------------|
-| `sac_admin`                       | Admin                                                     |
-| `sac_n1`                          | N1                                                        |
+| Grupo no LLDAP | Efeito no SAC |
+|---|---|
+| `Clientes` | usuário externo: entra como cliente (nunca recebe acesso de equipe, mesmo estando num grupo `sac_`) |
+| `Projeto_...` | para um cliente, dá acesso aos chamados daquele projeto; para funcionários, não muda nada no SAC |
+| `sac_admin` | Admin (funcionário) |
+| `sac_n1` | N1 (funcionário) |
 | `sac_software`, `sac_comercial`, `sac_financeiro` | o setor (perfis novos: `sac_<nome do perfil>`) |
-| `sac_projeto_<login do projeto>`  | cliente daquele projeto (vários usuários podem dividir)   |
 
-Os nomes exatos aparecem no SAC em **Equipe** (perfis) e em **Projetos** (coluna "Grupo no LLDAP").
-Quem está em mais de um grupo de equipe fica com o perfil mais alto (Admin > N1 > setores).
-No primeiro acesso, a pessoa da equipe é criada em **Equipe** com o usuário, o nome e o e-mail do LLDAP;
-o projeto do cliente recebe o e-mail e o nome do primeiro usuário, se estiverem vazios.
-Quem sai dos grupos de equipe fica desativado no SAC.
+- **Cliente** = `Clientes` + um ou mais `Projeto_...`. Quem participa de vários projetos vê os chamados de todos,
+  filtra por projeto e escolhe o projeto ao abrir um chamado. Nome e e-mail vêm do LLDAP, e os avisos do chamado
+  vão para quem o abriu.
+- **Os projetos vêm dos grupos `Projeto_...`.** Cada grupo vira um projeto do SAC no primeiro login de alguém dele
+  (funcionário ou cliente). Um projeto antigo é reaproveitado quando o nome ou o código bate: `Projeto_Marinha_USV` ou
+  `Projeto_4.2.16` → "4.2.16 Marinha - USV". **Buscar pastas novas**, **Criar projeto** e **Adicionar perfil** não existem
+  nesse modo. Em **Projetos > Editar** dá para completar responsável, e-mail e módulos, ou corrigir o grupo ligado ao projeto.
+- **Funcionário** = um grupo `sac_`. Quem está em mais de um fica com o perfil mais alto (Admin > N1 > setores).
+  No primeiro acesso, a pessoa é criada em **Equipe** com o usuário, o nome e o e-mail do LLDAP.
+- Quem não é cliente nem funcionário não entra. Quem sai dos grupos fica desativado no SAC.
+  Em **Projetos**, a lista "Clientes que já entraram" mostra cada cliente e os seus projetos.
 
 **3. `backend/.env`:** `AUTH_MODE=authelia`, `AUTHELIA_URL=https://auth.innomaker.com.br` e
 `PUBLIC_URL=https://sac.innomaker.com.br`. Se o cookie do Authelia tiver outro nome, ajuste `AUTHELIA_COOKIE`.
