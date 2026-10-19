@@ -1,16 +1,26 @@
+version: '3.8'
+
 services:
-  backend:
-    build: ./backend
-    env_file: ./backend/.env
-    environment:
-      DATA_DIR: /data
-      API_PORT: 3001
-    volumes: ["./data:/data"]
+  sac:
+    networks:
+      -  proxy
+    build: .
+    container_name: sac
     restart: unless-stopped
-  frontend:
-    build: ./frontend
-    environment:
-      API_URL: http://backend:3001
-    ports: ["3000:3000"]
-    depends_on: [backend]
-    restart: unless-stopped
+    env_file: .env
+    volumes: ["./data:/app/data"]
+    labels:
+      traefik.enable: 'true'
+      traefik.docker.network: 'proxy'
+
+      # --- Portal router: https:/innomaker.com.br ---
+      traefik.http.routers.sac.rule: 'Host(`sac.innomaker.com.br`)'
+      traefik.http.routers.sac.entrypoints: 'https'
+      traefik.http.routers.sac.tls.certresolver: 'cloudflare'
+      traefik.http.services.sac.loadbalancer.server.port: '3000'
+    dns:
+      - 192.168.0.201
+      - 1.1.1.1
+networks:
+  proxy:
+    external: true
