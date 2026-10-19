@@ -4,22 +4,24 @@
 .lp-pagina{min-height:100vh;min-height:100dvh;display:grid;grid-template-columns:minmax(0,1.1fr) minmax(360px,1fr)}
 .lp [hidden]{display:none !important}
 
+/* Painel da marca: o verde-escuro original da Innomaker, igual nos temas claro e escuro */
 .lp-marca{position:relative;overflow:hidden;display:flex;flex-direction:column;justify-content:space-between;gap:40px;
-  padding:48px clamp(28px,5vw,72px);background:var(--superficie);border-right:1px solid var(--linha)}
+  padding:48px clamp(28px,5vw,72px);background:#0f2a0d;color:#dcebd8}
 .lp-marca::before,.lp-marca::after{content:"";position:absolute;border-radius:50%;pointer-events:none;aspect-ratio:1}
-.lp-marca::after{right:-12%;top:-18%;width:62%;border:2px solid color-mix(in srgb,var(--marca) 24%,transparent)}
-.lp-marca::before{right:-4%;top:-8%;width:40%;border:2px solid color-mix(in srgb,var(--marca) 14%,transparent)}
-.lp-empresa{margin:0;font-family:var(--fonte-titulo);font-weight:700;font-size:1.05rem;letter-spacing:.02em;color:var(--acento);position:relative}
-.lp-sigla{margin:0;font-family:var(--fonte-titulo);font-stretch:75%;font-weight:800;font-size:clamp(6.5rem,15vw,12.5rem);line-height:.8;letter-spacing:-.03em;color:var(--marca)}
-.lp-titulo{margin:18px 0 0;font-size:clamp(1.6rem,2.6vw,2.2rem);color:var(--texto)}
-.lp-frase{margin:8px 0 0;max-width:30ch;font-size:clamp(1.05rem,1.5vw,1.25rem);line-height:1.45;color:var(--suave)}
+.lp-marca::after{right:-12%;top:-18%;width:62%;border:2px solid rgba(65,166,57,.22)}
+.lp-marca::before{right:-4%;top:-8%;width:40%;border:2px solid rgba(65,166,57,.14)}
+.lp-empresa{margin:0;font-family:var(--fonte-titulo);font-weight:700;font-size:1.05rem;letter-spacing:.02em;color:#a9d3a2;position:relative}
+.lp-sigla{margin:0;font-family:var(--fonte-titulo);font-stretch:75%;font-weight:800;font-size:clamp(6.5rem,15vw,12.5rem);line-height:.8;letter-spacing:-.03em;color:#41a639}
+.lp-titulo{margin:18px 0 0;font-size:clamp(1.6rem,2.6vw,2.2rem);color:#f3f9f1}
+.lp-frase{margin:8px 0 0;max-width:30ch;font-size:clamp(1.05rem,1.5vw,1.25rem);line-height:1.45;color:#c9dfc4}
 
 .lp-trilha{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));position:relative;max-width:560px}
-.lp-trilha::before{content:"";position:absolute;left:9px;right:calc(20% - 9px);top:8px;height:2px;background:var(--marca);transform-origin:left}
-.lp-trilha li{position:relative;padding:28px 6px 0 0;font-size:.8rem;line-height:1.25;color:var(--suave)}
-.lp-trilha li::before{content:"";position:absolute;left:0;top:0;width:18px;height:18px;border-radius:50%;background:var(--marca);box-shadow:0 0 0 4px var(--superficie);z-index:1}
-.lp-trilha li:last-child{color:var(--texto);font-weight:600}
-.lp-trilha li:last-child::before{content:"✓";display:grid;place-items:center;color:var(--marca-texto);font-size:.72rem;font-weight:800}
+.lp-trilha::after{content:"";position:absolute;left:9px;right:calc(20% - 9px);top:8px;height:2px;background:rgba(220,235,216,.18)}
+.lp-trilha::before{content:"";position:absolute;left:9px;right:calc(20% - 9px);top:8px;height:2px;background:#41a639;transform-origin:left;z-index:1}
+.lp-trilha li{position:relative;padding:28px 6px 0 0;font-size:.8rem;line-height:1.25;color:#a9c9a4}
+.lp-trilha li::before{content:"";position:absolute;left:0;top:0;width:18px;height:18px;border-radius:50%;background:#41a639;box-shadow:0 0 0 4px #0f2a0d;z-index:2}
+.lp-trilha li:last-child{color:#e9f3e6;font-weight:600}
+.lp-trilha li:last-child::before{content:"✓";display:grid;place-items:center;color:#ffffff;font-size:.72rem;font-weight:800}
 @media (prefers-reduced-motion:no-preference){
   .lp-trilha::before{animation:lp-trilha 1.8s cubic-bezier(.6,0,.2,1) .3s both}
   .lp-trilha li::before{animation:lp-ponto .35s ease-out both}

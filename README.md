@@ -94,7 +94,7 @@ navegador ──(cookie authelia_session)──> frontend ──> backend ──
 ```
 
 - **Sem sessão no Authelia:** o endereço do SAC mostra só a landing page (`frontend/public/landing.html`), com o
-  botão **Entrar com a conta Innomaker**. Depois do login, o Authelia devolve a pessoa para a página que ela abriu.
+  botão **Entrar**. Depois do login, o Authelia devolve a pessoa para a página que ela abriu.
 - **Com sessão:** o SAC abre direto, com o perfil definido pelos grupos do LLDAP.
 - **Com sessão, mas sem acesso** (nem cliente com projeto, nem grupo `sac_`): a landing page explica o motivo e oferece entrar com outra conta.
 - Cada chamada à API é conferida: sair da conta Innomaker corta o SAC em até 30 segundos;
