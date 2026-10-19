@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>SAC · Innomaker</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#41a639">
+<meta name="description" content="Central de atendimento Innomaker: abra chamados e acompanhe cada etapa até a solução.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..100,500..800&family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/estilo.css">
+<link rel="stylesheet" href="css/landing.css">
+</head>
+<body class="lp">
+<main class="lp-pagina">
+  <section class="lp-marca" aria-labelledby="lp-titulo-marca">
+    <p class="lp-empresa">Innomaker</p>
+    <div>
+      <p class="lp-sigla" aria-hidden="true">SAC</p>
+      <h1 class="lp-titulo" id="lp-titulo-marca">Central de atendimento</h1>
+      <p class="lp-frase">Abra um chamado e acompanhe cada etapa até a solução.</p>
+    </div>
+    <ol class="lp-trilha" aria-label="Etapas de um chamado"><li>Aberto</li><li>Em triagem</li><li>Em atendimento</li><li>Resolvido</li><li>Fechado</li></ol>
+  </section>
+
+  <section class="lp-acesso">
+    <div class="lp-cartao">
+      <h2 id="lp-titulo">Entrar</h2>
+      <p class="lp-texto" id="lp-texto">Use a sua conta Innomaker. O login acontece na página segura <span translate="no">auth.innomaker.com.br</span>.</p>
+      <p class="lp-erro" id="lp-erro" role="alert" hidden></p>
+      <a class="btn btn-primario lp-botao" id="lp-entrar" href="{{ENTRAR}}">Entrar com a conta Innomaker</a>
+      <a class="lp-outra" id="lp-outra" href="{{SAIR}}" hidden>Entrar com outra conta</a>
+    </div>
+    <ul class="lp-recursos">
+      <li><b>Prazo à vista</b> Cada chamado mostra a etapa atual e o prazo de atendimento.</li>
+      <li><b>Conversa direta</b> Fale com a equipe e envie arquivos no próprio chamado.</li>
+      <li><b>Avisos por e-mail</b> Você recebe as atualizações sem precisar entrar.</li>
+    </ul>
+    <p class="lp-ligar" id="lp-ligar" hidden></p>
+  </section>
+</main>
+<!--ESTADO-->
+<script src="js/landing.js"></script>
+</body>
+</html>

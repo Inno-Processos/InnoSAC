@@ -17,8 +17,9 @@ const chipStatus = s => `<span class="chip st-${slug(s)}">${esc(s)}</span>`;
 const num = (v, suf) => (v === null || v === undefined) ? '—' : Number(v).toLocaleString('pt-BR') + (suf || '');
 const tamanho = b => { b = Number(b) || 0; return b > 1048576 ? (b / 1048576).toFixed(1).replace('.', ',') + ' MB' : Math.max(1, Math.round(b / 1024)) + ' KB'; };
 
-// Login pelo Authelia/LLDAP (AUTH_MODE=oidc no backend): sem senhas no SAC, acesso pelos grupos sac_*
-const sso = () => !!(S.auth && S.auth.modo === 'oidc');
+// Login pelo Authelia/LLDAP (AUTH_MODE=authelia no backend): a sessão é o cookie do Authelia, sem senhas no SAC;
+// o acesso vem dos grupos sac_* do LLDAP. Quem não entrou recebe a landing page (landing.html) do servidor.
+const sso = () => !!(S.auth && S.auth.modo === 'authelia');
 // Mesmo nome que o backend usa (grupoLldap_ no Codigo.gs): "Suporte de campo" -> sac_suporte_de_campo
 const grupoLldap = nome => 'sac_' + String(nome || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
   .replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 40);
@@ -300,14 +301,8 @@ async function iniciarApp() {
   document.title = 'SAC';
   montarRodape();
   if (S.params.pesquisa && S.params.k) return telaPesquisaAvulsa(S.params.pesquisa, S.params.k);
-  // Volta do Authelia: o backend devolve a sessão em #sso=... (ou o motivo da recusa em #sso-erro=...)
-  const retorno = new URLSearchParams(location.hash.slice(1));
-  if (retorno.has('sso') || retorno.has('sso-erro')) {
-    history.replaceState(null, '', location.pathname + location.search);
-    if (retorno.get('sso')) guarda.set(retorno.get('sso'));
-    else return telaLogin(retorno.get('sso-erro') || 'Não foi possível entrar.');
-  }
-  const t = guarda.get();
+  // Com o Authelia, quem decide a sessão é o cookie: o backend troca o token enviado pela sessão certa
+  const t = sso() ? 'authelia' : guarda.get();
   if (t) {
     S.token = t;
     try { await carregarSessao(); return home(true); }
@@ -353,11 +348,8 @@ function ligarVerSenha() {
 function telaLogin(msg) {
   S.usuario = null; S.trocandoSenha = false; topo();
   document.body.classList.add('modo-login');
-  const entrarSso = () => { location.href = SacApi.urlEntrar(location.pathname + location.search); };
-  if (sso() && !msg) {
-    app.innerHTML = '<div class="carregando">Abrindo o login da Innomaker…</div>';
-    return entrarSso();
-  }
+  // Recarregar faz o servidor decidir: abre o SAC se a sessão do Authelia vale, senão mostra a landing page
+  const entrarSso = () => { location.href = location.pathname + location.search; };
   const pub = S.publico || {};
   const dig = String(pub.telefone || '').replace(/\D/g, '');
   const tel = dig.length >= 10 && dig.length <= 11 ? '+55' + dig : dig;
@@ -376,8 +368,8 @@ function telaLogin(msg) {
         <div>
           <h1>Entrar</h1>
           <p class="sub">Use a sua conta Innomaker. O login acontece na página segura auth.innomaker.com.br.</p>
-          ${msg ? `<p class="atrasado">${esc(msg)}</p>` : ''}
-          <button type="button" class="btn btn-primario" id="b-entrar-sso">Entrar com a conta Innomaker</button>
+          <p class="atrasado">${esc(msg || 'Sua sessão terminou.')}</p>
+          <button type="button" class="btn btn-primario" id="b-entrar-sso">Entrar de novo</button>
         </div>` : `
         <form id="f-login">
           <h1>Entrar</h1>
@@ -1687,11 +1679,11 @@ function cfgFeriados(c) {
 
 // ───────── Ajuda e manuais da equipe ─────────
 const GUIA = [
-  { titulo: 'Acesso pelo Authelia e LLDAP', para: ['Admin'], so: 'oidc', html: `
+  { titulo: 'Acesso pelo Authelia e LLDAP', para: ['Admin'], so: 'authelia', html: `
     <p>Todos entram com a conta Innomaker (auth.innomaker.com.br). O SAC não guarda senhas: as orientações de senha das outras seções não se aplicam.</p>
     <ul><li><b>Equipe</b>: coloque a pessoa no grupo do perfil no LLDAP (<code>sac_admin</code>, <code>sac_n1</code>, <code>sac_software</code>...). No primeiro login, ela aparece em <b>Equipe</b>.</li>
     <li><b>Clientes</b>: crie o grupo <code>sac_projeto_login</code> do projeto (veja em <b>Projetos</b>) e coloque nele os usuários do cliente. Todos entram no mesmo projeto.</li>
-    <li><b>Tirar o acesso</b>: remova a pessoa do grupo ou desative o usuário no LLDAP. Vale no próximo login; uma sessão já aberta dura no máximo 6 horas. Para cortar um cliente na hora, desative o projeto em <b>Projetos</b>.</li>
+    <li><b>Tirar o acesso</b>: remova a pessoa do grupo ou desative o usuário no LLDAP. Sair da conta Innomaker ou desativá-la corta o SAC em até 30 segundos; mudanças de grupo valem em até 15 minutos.</li>
     <li><b>Novo perfil</b>: em <b>Equipe &gt; Adicionar perfil</b>; o nome do grupo aparece na lista.</li></ul>` },
   { titulo: 'Primeiros passos do administrador', para: ['Admin'], html: `
     <ol><li>Entre com o login <b>admin</b> e a senha temporária que chegou no seu e-mail (ou no Registro de execução do Apps Script). O sistema pede para você criar uma senha nova.</li>
@@ -1754,7 +1746,7 @@ const GUIA = [
 
 function telaAjuda() {
   const perfil = S.usuario.perfil;
-  const secoes = GUIA.filter(g => g.para.includes(perfil) && (!g.so || (g.so === 'oidc') === sso()));
+  const secoes = GUIA.filter(g => g.para.includes(perfil) && (!g.so || (g.so === 'authelia') === sso()));
   app.innerHTML = `
     <div class="cabeca-lista"><div><h1>Ajuda e manuais</h1><p class="suave" style="margin:0">Como usar o SAC no seu perfil (${esc(perfil)}).</p></div></div>
     <div class="ajuda-grade">

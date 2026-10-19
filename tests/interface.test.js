@@ -147,7 +147,7 @@ async function main() {
 
   // Authelia/LLDAP mode: no password controls, LLDAP group names instead
   ctx.user = admin;
-  run("S.auth = { modo: 'oidc', sair: 'https://auth.example/logout' }; S.usuario = user; topo();");
+  run("S.auth = { modo: 'authelia', sair: 'https://auth.example/logout' }; S.usuario = user; topo();");
   assert.equal($('#btn-senha'), null);
   assert($('#btn-sair'));
   await run('telaProjetos()');

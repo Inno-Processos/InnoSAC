@@ -12,14 +12,15 @@ sac/
 │       ├── cli.js           comandos de manutenção (instalar, senha do admin, backup)
 │       ├── config.js        lê o .env
 │       ├── http/app.js      rotas: /api/saude, POST /api/<funcao>, /api/auth/*, /drive/<id>
-│       ├── auth/oidc.js     login pelo Authelia (OpenID Connect)
+│       ├── auth/authelia.js confere a sessão do Authelia e os grupos do LLDAP
 │       ├── nucleo/          executor das regras, e-mail (SMTP) e gatilhos de hora em hora
 │       ├── gas/servicos.js  imitação local dos serviços do Google (Planilha, Drive, Cache...)
 │       └── regras/Codigo.gs regras de negócio (o mesmo código do Apps Script)
 ├── frontend/                interface web (porta 3000)
-│   ├── server.js            entrega public/ e repassa /api e /drive ao backend
+│   ├── server.js            entrega public/ (ou a landing page sem login) e repassa /api e /drive
 │   └── public/
-│       ├── index.html       estrutura da página
+│       ├── index.html       estrutura da página do SAC
+│       ├── landing.html     página de entrada para quem não fez login
 │       ├── css/             estilo.css e interno.css
 │       └── js/              api.js (cliente HTTP), app.js (telas), inicio.js (partida)
 ├── data/                    o banco de dados (faça backup desta pasta)
@@ -74,6 +75,7 @@ POST /api/<funcao>     corpo: { "args": [ ... ] }
 400 -> { "erro": "mensagem" }      401 sessão expirada      403 troca de senha obrigatória
 404 -> função inexistente ou não pública
 GET  /api/saude        -> { "ok": true }
+GET  /api/auth/sessao  -> 200 com sessão do Authelia válida, 401 sem login, 403 sem grupo sac_
 ```
 
 `<funcao>` é qualquer função pública de `backend/src/regras/Codigo.gs` (sem `_` no fim), exceto as de manutenção.
@@ -82,38 +84,36 @@ Para hospedar `frontend/public/` em outro lugar, defina `apiUrl` em `config.js` 
 
 ## Login pelo Authelia e LLDAP
 
-Com `AUTH_MODE=oidc` no `backend/.env`, todos (equipe e clientes) entram pela conta Innomaker em
-`https://auth.innomaker.com.br` (OpenID Connect com PKCE). O SAC não guarda nem pede senhas:
-login com senha, "Esqueci minha senha", "Trocar senha" e "Nova senha" ficam desligados.
+Com `AUTH_MODE=authelia` no `backend/.env`, o SAC usa a sessão que o Authelia já mantém no navegador
+(cookie `authelia_session`, válido em todo `*.innomaker.com.br`). Não há senhas no SAC.
 
-**1. Gere o segredo do cliente** (em qualquer máquina com Docker):
-
-```bash
-docker run --rm authelia/authelia:latest authelia crypto hash generate pbkdf2 --variant sha512 --random --random.length 72 --random.charset rfc3986
+```
+navegador ──(cookie authelia_session)──> frontend ──> backend ──> auth.innomaker.com.br/api/authz/auth-request
+                                                                      200: usuário, nome, e-mail, grupos do LLDAP
+                                                                      401: sem login  → landing page
 ```
 
-A saída traz `Random Password` (vai em `OIDC_CLIENT_SECRET` no `backend/.env`) e `Digest` (vai no Authelia).
+- **Sem sessão no Authelia:** o endereço do SAC mostra só a landing page (`frontend/public/landing.html`), com o
+  botão **Entrar com a conta Innomaker**. Depois do login, o Authelia devolve a pessoa para a página que ela abriu.
+- **Com sessão:** o SAC abre direto, com o perfil definido pelos grupos do LLDAP.
+- **Com sessão, mas sem grupo `sac_`:** a landing page explica que o acesso não foi liberado e oferece entrar com outra conta.
+- Cada chamada à API é conferida: sair da conta Innomaker corta o SAC em até 30 segundos;
+  mudanças de grupo valem em até 15 minutos. **Sair** no SAC também sai da conta Innomaker.
+- Os links da pesquisa de satisfação e dos manuais continuam abrindo sem login.
 
-**2. Cadastre o SAC no `configuration.yml` do Authelia**, dentro de `identity_providers.oidc.clients`, e reinicie o Authelia:
+**1. Regra no Authelia.** O `access_control` do `configuration.yml` precisa cobrir o domínio do SAC
+(o portal pergunta ao Authelia sobre `https://sac.innomaker.com.br/`):
 
 ```yaml
-      - client_id: 'sac'
-        client_name: 'SAC Innomaker'
-        client_secret: '$pbkdf2-sha512$...'      # o Digest do passo 1
-        public: false
-        authorization_policy: 'one_factor'      # ou 'two_factor' para exigir 2FA
-        consent_mode: 'implicit'                # sem tela de consentimento
-        require_pkce: true
-        pkce_challenge_method: 'S256'
-        redirect_uris:
-          - 'https://sac.innomaker.com.br/api/auth/retorno'
-        scopes: ['openid', 'profile', 'email', 'groups']
-        response_types: ['code']
-        grant_types: ['authorization_code']
-        token_endpoint_auth_method: 'client_secret_basic'
+access_control:
+  rules:
+    - domain: 'sac.innomaker.com.br'
+      policy: 'one_factor'      # ou 'two_factor' para exigir 2FA
 ```
 
-**3. Crie os grupos no LLDAP.** Quem não estiver em nenhum grupo `sac_` não entra.
+Não é preciso cadastrar cliente OIDC nem gerar segredo.
+
+**2. Grupos no LLDAP.** Quem não estiver em nenhum grupo `sac_` não entra.
 
 | Grupo no LLDAP                    | Acesso no SAC                                             |
 |-----------------------------------|-----------------------------------------------------------|
@@ -124,21 +124,18 @@ A saída traz `Random Password` (vai em `OIDC_CLIENT_SECRET` no `backend/.env`) 
 
 Os nomes exatos aparecem no SAC em **Equipe** (perfis) e em **Projetos** (coluna "Grupo no LLDAP").
 Quem está em mais de um grupo de equipe fica com o perfil mais alto (Admin > N1 > setores).
-No primeiro login, a pessoa da equipe é criada em **Equipe** com o usuário, o nome e o e-mail do LLDAP;
+No primeiro acesso, a pessoa da equipe é criada em **Equipe** com o usuário, o nome e o e-mail do LLDAP;
 o projeto do cliente recebe o e-mail e o nome do primeiro usuário, se estiverem vazios.
-Mudanças de grupo valem no próximo login; uma sessão aberta dura no máximo 6 horas.
-Quem sai dos grupos de equipe fica desativado no SAC no próximo login.
+Quem sai dos grupos de equipe fica desativado no SAC.
 
-**4. Configure o `backend/.env`:** `AUTH_MODE=oidc`, `OIDC_ISSUER=https://auth.innomaker.com.br`,
-`OIDC_CLIENT_ID=sac`, `OIDC_CLIENT_SECRET=<Random Password>` e `PUBLIC_URL=https://sac.innomaker.com.br`.
+**3. `backend/.env`:** `AUTH_MODE=authelia`, `AUTHELIA_URL=https://auth.innomaker.com.br` e
+`PUBLIC_URL=https://sac.innomaker.com.br`. Se o cookie do Authelia tiver outro nome, ajuste `AUTHELIA_COOKIE`.
 
-**5. Publique** `sac.innomaker.com.br` no seu proxy (Nginx, Caddy, Traefik...) apontando para a porta 3000 (frontend).
-Não coloque o *forward auth* do Authelia nesse domínio: o próprio SAC faz o login, e os links de pesquisa
-de satisfação e dos manuais precisam abrir sem login.
-
-**Sair** encerra a sessão do SAC e também a da conta Innomaker (`/logout` do Authelia).
-Para testar no computador antes de publicar, acrescente `http://localhost:3000/api/auth/retorno` em `redirect_uris`
-(se o seu Authelia aceitar `http` em localhost) e use `PUBLIC_URL=http://localhost:3000`.
+**4. Publique** `sac.innomaker.com.br` no seu proxy (Nginx, Caddy, Traefik...) apontando para a porta 3000 (frontend),
+repassando o cabeçalho `X-Forwarded-For`. Não use o *forward auth* do Authelia nesse domínio: o próprio SAC
+consulta o Authelia e mostra a landing page em vez de redirecionar direto para o login.
+O SAC precisa estar num subdomínio de `innomaker.com.br`; em `localhost` o navegador não envia o cookie do Authelia
+(para testar no computador, use `AUTH_MODE=senha`).
 
 ## Projetos
 Crie uma pasta por projeto em `data/drive/Projetos/` e clique em **Projetos > Buscar pastas novas**

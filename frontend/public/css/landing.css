@@ -1,0 +1,52 @@
+/* Landing page: o que aparece para quem ainda não entrou com a conta Innomaker. Usa as cores de estilo.css. */
+.lp{background:var(--papel)}
+.lp main.lp-pagina{max-width:none;margin:0;padding:0}
+.lp-pagina{min-height:100vh;min-height:100dvh;display:grid;grid-template-columns:minmax(0,1.1fr) minmax(360px,1fr)}
+.lp [hidden]{display:none !important}
+
+.lp-marca{position:relative;overflow:hidden;display:flex;flex-direction:column;justify-content:space-between;gap:40px;
+  padding:48px clamp(28px,5vw,72px);background:var(--superficie);border-right:1px solid var(--linha)}
+.lp-marca::before,.lp-marca::after{content:"";position:absolute;border-radius:50%;pointer-events:none;aspect-ratio:1}
+.lp-marca::after{right:-12%;top:-18%;width:62%;border:2px solid color-mix(in srgb,var(--marca) 24%,transparent)}
+.lp-marca::before{right:-4%;top:-8%;width:40%;border:2px solid color-mix(in srgb,var(--marca) 14%,transparent)}
+.lp-empresa{margin:0;font-family:var(--fonte-titulo);font-weight:700;font-size:1.05rem;letter-spacing:.02em;color:var(--acento);position:relative}
+.lp-sigla{margin:0;font-family:var(--fonte-titulo);font-stretch:75%;font-weight:800;font-size:clamp(6.5rem,15vw,12.5rem);line-height:.8;letter-spacing:-.03em;color:var(--marca)}
+.lp-titulo{margin:18px 0 0;font-size:clamp(1.6rem,2.6vw,2.2rem);color:var(--texto)}
+.lp-frase{margin:8px 0 0;max-width:30ch;font-size:clamp(1.05rem,1.5vw,1.25rem);line-height:1.45;color:var(--suave)}
+
+.lp-trilha{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));position:relative;max-width:560px}
+.lp-trilha::before{content:"";position:absolute;left:9px;right:calc(20% - 9px);top:8px;height:2px;background:var(--marca);transform-origin:left}
+.lp-trilha li{position:relative;padding:28px 6px 0 0;font-size:.8rem;line-height:1.25;color:var(--suave)}
+.lp-trilha li::before{content:"";position:absolute;left:0;top:0;width:18px;height:18px;border-radius:50%;background:var(--marca);box-shadow:0 0 0 4px var(--superficie);z-index:1}
+.lp-trilha li:last-child{color:var(--texto);font-weight:600}
+.lp-trilha li:last-child::before{content:"✓";display:grid;place-items:center;color:var(--marca-texto);font-size:.72rem;font-weight:800}
+@media (prefers-reduced-motion:no-preference){
+  .lp-trilha::before{animation:lp-trilha 1.8s cubic-bezier(.6,0,.2,1) .3s both}
+  .lp-trilha li::before{animation:lp-ponto .35s ease-out both}
+  .lp-trilha li:nth-child(2)::before{animation-delay:.65s}.lp-trilha li:nth-child(3)::before{animation-delay:1.05s}
+  .lp-trilha li:nth-child(4)::before{animation-delay:1.45s}.lp-trilha li:nth-child(5)::before{animation-delay:1.85s}
+}
+@keyframes lp-trilha{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+@keyframes lp-ponto{from{transform:scale(0)}to{transform:scale(1)}}
+
+.lp-acesso{display:flex;flex-direction:column;justify-content:center;gap:28px;padding:48px clamp(24px,5vw,72px) 28px}
+.lp-cartao{width:100%;max-width:400px;margin:auto auto 0}
+.lp-cartao h2{font-size:2.4rem;font-stretch:80%;margin-bottom:6px}
+.lp-texto{color:var(--suave);margin:0 0 24px}
+.lp-erro{margin:0 0 20px;padding:12px 14px;border-radius:var(--raio-p);background:var(--bloqueio-claro);color:var(--bloqueio);font-weight:600}
+.lp-botao{display:block;width:100%;padding:13px 16px;font-size:1rem;text-align:center;text-decoration:none}
+.lp-outra{display:block;margin:16px auto 0;text-align:center;font-weight:600}
+.lp-recursos{list-style:none;margin:0 auto;padding:0;width:100%;max-width:400px;display:grid;gap:12px;border-top:1px solid var(--linha);padding-top:24px}
+.lp-recursos li{color:var(--suave);font-size:.92rem;line-height:1.45}
+.lp-recursos b{display:block;color:var(--texto);font-family:var(--fonte-titulo);font-size:1rem}
+.lp-ligar{margin:auto auto 0;text-align:center;color:var(--suave);font-size:.9rem;max-width:400px}
+.lp-ligar a{color:var(--texto);font-weight:700;text-decoration:none;white-space:nowrap}
+
+@media (max-width:820px){
+  .lp-pagina{grid-template-columns:minmax(0,1fr)}
+  .lp-marca{padding:28px 16px 30px;gap:22px;border-right:0;border-bottom:1px solid var(--linha)}
+  .lp-sigla{font-size:5.5rem}
+  .lp-trilha li{font-size:.66rem;padding-right:2px}
+  .lp-acesso{padding:32px 16px 24px}
+  .lp-cartao{margin:0 auto}
+}

@@ -2,9 +2,8 @@
 //   GET  /api/saude          -> { ok: true }
 //   POST /api/<funcao>       corpo { args: [...] } -> { ok: true, resultado } | { erro }
 //   GET  /drive/<id>         -> manual publicado (equivalente a "qualquer pessoa com o link" no Drive)
-//   GET  /api/auth/info      -> { modo: "senha" | "oidc", sair } (como a tela de login deve se comportar)
-//   GET  /api/auth/entrar    -> leva ao login do Authelia (AUTH_MODE=oidc)
-//   GET  /api/auth/retorno   -> volta do Authelia; abre a sessão e devolve o navegador ao portal
+//   GET  /api/auth/info      -> { modo: "senha" | "authelia", entrar, sair } (links do login e da saída)
+//   GET  /api/auth/sessao    -> 200 se o cookie do Authelia vale e dá acesso ao SAC; 401 sem login; 403 sem grupo sac_
 'use strict';
 const fs = require('fs');
 const path = require('path');
@@ -33,49 +32,13 @@ function statusDoErro(msg) {
 
 // Com o Authelia, as senhas do SAC deixam de existir: estas funções ficam bloqueadas
 const SO_COM_SENHA = new Set(['entrar', 'trocarSenha', 'esqueciSenha', 'redefinirSenhaAcesso', 'salvarMembro']);
-
-function lerCookie(req, nome) {
-  const m = String(req.headers.cookie || '').match(new RegExp('(?:^|;\\s*)' + nome + '=([^;]*)'));
-  return m ? decodeURIComponent(m[1]) : '';
-}
-
-function redirecionar(res, url, cookie) {
-  const cab = { Location: url, 'Cache-Control': 'no-store' };
-  if (cookie) cab['Set-Cookie'] = cookie;
-  res.writeHead(302, cab);
-  res.end();
-}
+// Abertas sem login: dados da tela inicial e a pesquisa de satisfação (validada pela chave do link)
+const SEM_LOGIN = new Set(['dadosPublicos', 'dadosPesquisa', 'responderPesquisa']);
+const FALHA_AUTHELIA = 'Não foi possível falar com o login da Innomaker. Tente de novo em instantes.';
 
 function criarApp({ executor, limiteCorpo, origensCors, auth }) {
-  const oidc = auth.modo === 'oidc' ? auth.oidc : null;
-  const cookieState = valor => `sac_oidc=${valor}; Path=/api/auth; HttpOnly; SameSite=Lax; Max-Age=${valor ? 600 : 0}` +
-    (auth.urlPublica.startsWith('https:') ? '; Secure' : '');
-
-  // Só caminhos do próprio portal ("/..." sem "//" nem "#"), para o login não virar um redirecionador aberto
-  const voltaSegura = v => (typeof v === 'string' && /^\/(?![/\\])[^\s\\#]*$/.test(v) ? v : '/');
-
-  async function entrarSso(res, params) {
-    try {
-      const { url, state } = await oidc.iniciar(voltaSegura(params.get('volta')));
-      redirecionar(res, url, cookieState(state));
-    } catch (e) {
-      console.error('[oidc]', e.message);
-      redirecionar(res, auth.urlPublica + '/#sso-erro=' + encodeURIComponent(e.message));
-    }
-  }
-
-  async function retornoSso(req, res, params) {
-    let destino;
-    try {
-      const { identidade, volta } = await oidc.concluir(params, lerCookie(req, 'sac_oidc'));
-      const { token } = executor.executar('entrarExterno_', [identidade]);
-      destino = auth.urlPublica + volta + '#sso=' + encodeURIComponent(token);
-    } catch (e) {
-      console.error('[oidc]', e.message);
-      destino = auth.urlPublica + '/#sso-erro=' + encodeURIComponent(String(e && e.message || e));
-    }
-    redirecionar(res, destino, cookieState(''));
-  }
+  const authelia = auth.modo === 'authelia' ? auth.authelia : null;
+  const origemPublica = new URL(auth.urlPublica).origin;
 
   function cors(req, res) {
     const origem = req.headers.origin;
@@ -86,15 +49,37 @@ function criarApp({ executor, limiteCorpo, origensCors, auth }) {
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   }
 
+  // A sessão vem de um cookie: só o próprio portal (ou origens liberadas no CORS) pode chamar a API
+  const origemPermitida = req => { const o = req.headers.origin; return !o || o === origemPublica || origensCors.includes('*') || origensCors.includes(o); };
+
+  async function sessaoAuthelia(res, req) {
+    let s;
+    try { s = await authelia.sessao(req); } catch (e) { console.error('[authelia]', e.message); return json(res, 502, { erro: FALHA_AUTHELIA }); }
+    if (s.estado === 'ok') return json(res, 200, { ok: true, usuario: s.identidade.usuario });
+    if (s.estado === 'sem-acesso') return json(res, 403, { erro: s.erro, sair: authelia.urlSair });
+    json(res, 401, { erro: 'SESSAO_EXPIRADA', entrar: authelia.urlEntrar('/') });
+  }
+
   async function chamarFuncao(req, res, fn) {
     if (!executor.publicas.has(fn)) return json(res, 404, { erro: 'Função não permitida: ' + fn });
-    if (oidc && SO_COM_SENHA.has(fn)) return json(res, 403, { erro: 'O acesso ao SAC é gerenciado pelo Authelia/LLDAP: não há senhas no SAC.' });
+    if (authelia && SO_COM_SENHA.has(fn)) return json(res, 403, { erro: 'O acesso ao SAC é gerenciado pelo Authelia/LLDAP: não há senhas no SAC.' });
+    if (authelia && !origemPermitida(req)) return json(res, 403, { erro: 'Origem não permitida.' });
     let args;
     try {
       const corpo = await lerCorpo(req, limiteCorpo);
       args = corpo ? JSON.parse(corpo).args : [];
     } catch (e) { return json(res, e.status || 400, { erro: e.status ? e.message : 'Corpo da requisição inválido' }); }
-    try { return json(res, 200, { ok: true, resultado: executor.executar(fn, Array.isArray(args) ? args : []) }); }
+    args = Array.isArray(args) ? args : [];
+    if (authelia && (!SEM_LOGIN.has(fn) || (fn === 'responderPesquisa' && args[0] && args[0].token))) {
+      let s;
+      try { s = await authelia.sessao(req); } catch (e) { console.error('[authelia]', e.message); return json(res, 502, { erro: FALHA_AUTHELIA }); }
+      if (s.estado === 'sem-acesso') return json(res, 403, { erro: s.erro });
+      if (s.estado !== 'ok') return json(res, 401, { erro: 'SESSAO_EXPIRADA' });
+      // Quem decide a sessão é o cookie do Authelia: o token enviado pelo navegador é substituído
+      if (fn === 'responderPesquisa') args[0] = { ...args[0], token: s.token }; else args[0] = s.token;
+      if (fn === 'sair') authelia.encerrar(req);
+    }
+    try { return json(res, 200, { ok: true, resultado: executor.executar(fn, args) }); }
     catch (e) { const msg = String(e && e.message || e); return json(res, statusDoErro(msg), { erro: msg }); }
   }
 
@@ -112,14 +97,15 @@ function criarApp({ executor, limiteCorpo, origensCors, auth }) {
   }
 
   return async (req, res) => {
-    const { pathname, searchParams } = new URL(req.url, 'http://x');
+    const { pathname } = new URL(req.url, 'http://x');
     try {
       cors(req, res);
       if (req.method === 'OPTIONS') { res.writeHead(204); return res.end(); }
       if (pathname === '/api/saude' && req.method === 'GET') return json(res, 200, { ok: true });
-      if (pathname === '/api/auth/info' && req.method === 'GET') return json(res, 200, { modo: auth.modo, sair: oidc ? oidc.urlSair : '' });
-      if (oidc && pathname === '/api/auth/entrar' && req.method === 'GET') return await entrarSso(res, searchParams);
-      if (oidc && pathname === '/api/auth/retorno' && req.method === 'GET') return await retornoSso(req, res, searchParams);
+      if (pathname === '/api/auth/info' && req.method === 'GET') {
+        return json(res, 200, { modo: auth.modo, entrar: authelia ? authelia.urlEntrar('/') : '', sair: authelia ? authelia.urlSair : '' });
+      }
+      if (pathname === '/api/auth/sessao' && req.method === 'GET') return authelia ? await sessaoAuthelia(res, req) : json(res, 200, { ok: true, modo: auth.modo });
       const m = pathname.match(/^\/api\/([A-Za-z][A-Za-z0-9]*)$/);
       if (m && req.method === 'POST') return await chamarFuncao(req, res, m[1]);
       if (pathname.startsWith('/drive/') && req.method === 'GET') return manual(res, decodeURIComponent(pathname.slice(7)));

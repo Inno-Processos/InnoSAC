@@ -1,6 +1,5 @@
 'use strict';
 const assert = require('node:assert/strict');
-const crypto = require('node:crypto');
 const fs = require('node:fs');
 const http = require('node:http');
 const os = require('node:os');
@@ -9,153 +8,141 @@ const path = require('node:path');
 const vm = require('node:vm');
 const { spawn, spawnSync } = require('node:child_process');
 
-// A fake OpenID provider stands in for Authelia; the backend runs as a real process with AUTH_MODE=oidc.
+// A fake Authelia answers /api/authz/auth-request; backend and frontend run as real processes with AUTH_MODE=authelia.
 const raiz = path.join(__dirname, '..');
 const portaLivre = () => new Promise(ok => { const s = net.createServer().listen(0, () => { const p = s.address().port; s.close(() => ok(p)); }); });
-const b64 = o => Buffer.from(JSON.stringify(o)).toString('base64url');
 
-function provedor(porta, clienteId, segredo) {
-  const emissor = `http://127.0.0.1:${porta}`;
-  const codigos = new Map(), acessos = new Map();
+function autheliaFalso(porta) {
+  const sessoes = new Map(); // cookie value -> { usuario, nome, email, grupos } | 'bloqueado'
+  const consultas = [];
   const servidor = http.createServer((req, res) => {
-    const url = new URL(req.url, emissor);
-    const json = (s, o) => { res.writeHead(s, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(o)); };
-    if (url.pathname === '/.well-known/openid-configuration') return json(200, { issuer: emissor,
-      authorization_endpoint: emissor + '/authorize', token_endpoint: emissor + '/token', userinfo_endpoint: emissor + '/userinfo' });
-    if (url.pathname === '/token') {
-      let corpo = '';
-      req.on('data', c => { corpo += c; });
-      return req.on('end', () => {
-        const p = new URLSearchParams(corpo), c = codigos.get(p.get('code'));
-        codigos.delete(p.get('code'));
-        const basic = 'Basic ' + Buffer.from(clienteId + ':' + segredo).toString('base64');
-        if (req.headers.authorization !== basic) return json(401, { error: 'invalid_client' });
-        if (!c || c.redirect !== p.get('redirect_uri')) return json(400, { error: 'invalid_grant' });
-        if (crypto.createHash('sha256').update(p.get('code_verifier') || '').digest('base64url') !== c.desafio) return json(400, { error: 'invalid_grant', error_description: 'PKCE' });
-        const acesso = crypto.randomUUID();
-        acessos.set(acesso, c.usuario);
-        json(200, { access_token: acesso, token_type: 'Bearer',
-          id_token: b64({ alg: 'none' }) + '.' + b64({ iss: emissor, aud: [clienteId], sub: c.usuario.sub, nonce: c.nonce, exp: Date.now() / 1000 + 300 }) + '.x' });
-      });
-    }
-    if (url.pathname === '/userinfo') {
-      const u = acessos.get(String(req.headers.authorization).replace('Bearer ', ''));
-      return u ? json(200, u) : json(401, { error: 'invalid_token' });
-    }
-    json(404, {});
+    if (req.url !== '/api/authz/auth-request') { res.writeHead(404); return res.end(); }
+    consultas.push(req.headers);
+    const valor = (String(req.headers.cookie || '').match(/authelia_session=([^;]+)/) || [])[1];
+    const s = sessoes.get(valor);
+    if (s === 'bloqueado') { res.writeHead(403); return res.end(); }
+    if (!s) { res.writeHead(401, { Location: `http://127.0.0.1:${porta}/?rd=x` }); return res.end(); }
+    res.writeHead(200, { 'Remote-User': s.usuario, 'Remote-Name': s.nome || '', 'Remote-Email': s.email || '', 'Remote-Groups': (s.grupos || []).join(',') });
+    res.end();
+  }).listen(porta);
+  return { servidor, sessoes, consultas, url: `http://127.0.0.1:${porta}` };
+}
+
+function subir(arquivo, cwd, env, pronto) {
+  return new Promise((ok, falha) => {
+    const filho = spawn(process.execPath, [arquivo], { cwd, env, stdio: ['ignore', 'pipe', 'pipe'] });
+    let saida = '';
+    const tempo = setTimeout(() => falha(new Error('Timeout: ' + arquivo + '\n' + saida)), 10000);
+    filho.stdout.on('data', d => { saida += d; if (saida.includes(pronto)) { clearTimeout(tempo); ok(filho); } });
+    filho.stderr.on('data', d => { saida += d; });
+    filho.on('exit', c => { clearTimeout(tempo); falha(new Error(arquivo + ' saiu com código ' + c + '\n' + saida)); });
   });
-  // What Authelia does after the user logs in: issue a code bound to the PKCE challenge and nonce
-  function autorizar(urlLogin, usuario) {
-    const u = new URL(urlLogin);
-    assert.equal(u.origin + u.pathname, emissor + '/authorize');
-    assert.equal(u.searchParams.get('client_id'), clienteId);
-    assert.equal(u.searchParams.get('code_challenge_method'), 'S256');
-    assert.match(u.searchParams.get('scope'), /groups/);
-    const codigo = crypto.randomUUID();
-    codigos.set(codigo, { usuario: { sub: 'id-' + usuario.preferred_username, ...usuario }, desafio: u.searchParams.get('code_challenge'),
-      nonce: u.searchParams.get('nonce'), redirect: u.searchParams.get('redirect_uri') });
-    return new URL(`${u.searchParams.get('redirect_uri')}?code=${codigo}&state=${u.searchParams.get('state')}`);
-  }
-  return { servidor: servidor.listen(porta), emissor, autorizar };
 }
 
 async function main() {
-  const [apiPorta, idpPorta] = [await portaLivre(), await portaLivre()];
-  const fake = provedor(idpPorta, 'sac', 'segredo-de-teste');
-  const publico = 'https://sac.example';
-  const env = { ...process.env, DATA_DIR: fs.mkdtempSync(path.join(os.tmpdir(), 'sac-sso-')), SMTP_HOST: '', API_PORT: String(apiPorta),
-    PUBLIC_URL: publico, AUTH_MODE: 'oidc', OIDC_ISSUER: fake.emissor, OIDC_CLIENT_ID: 'sac', OIDC_CLIENT_SECRET: 'segredo-de-teste' };
+  const [apiPorta, webPorta, autPorta] = [await portaLivre(), await portaLivre(), await portaLivre()];
+  const aut = autheliaFalso(autPorta);
+  const web = `http://127.0.0.1:${webPorta}`;
+  const env = { ...process.env, DATA_DIR: fs.mkdtempSync(path.join(os.tmpdir(), 'sac-authelia-')), SMTP_HOST: '',
+    API_PORT: String(apiPorta), WEB_PORT: String(webPorta), API_URL: `http://127.0.0.1:${apiPorta}`, PUBLIC_API_URL: '',
+    PUBLIC_URL: web, AUTH_MODE: 'authelia', AUTHELIA_URL: aut.url };
   const inst = spawnSync(process.execPath, ['src/cli.js', 'instalar'], { cwd: path.join(raiz, 'backend'), env, encoding: 'utf8' });
   assert.equal(inst.status, 0, inst.stderr);
-  // Project with a dotted login, to check the LLDAP group name
   fs.mkdirSync(path.join(env.DATA_DIR, 'drive', 'Projetos', '4.2.16 Marinha - USV'), { recursive: true });
 
-  const backend = spawn(process.execPath, ['src/index.js'], { cwd: path.join(raiz, 'backend'), env, stdio: ['ignore', 'pipe', 'pipe'] });
-  let log = '';
-  backend.stdout.on('data', d => { log += d; });
-  backend.stderr.on('data', d => { log += d; });
+  const filhos = [];
   try {
-    await new Promise((ok, falha) => {
-      const t = setInterval(() => { if (log.includes('API do SAC')) { clearInterval(t); ok(); } }, 50);
-      backend.on('exit', c => { clearInterval(t); falha(new Error('backend saiu: ' + c + '\n' + log)); });
-    });
-    assert.match(log, /login: Authelia/);
-    const api = `http://127.0.0.1:${apiPorta}`;
-    const post = async (fn, ...args) => {
-      const r = await fetch(`${api}/api/${fn}`, { method: 'POST', body: JSON.stringify({ args }) });
+    filhos.push(await subir('src/index.js', path.join(raiz, 'backend'), env, 'login: Authelia'));
+    filhos.push(await subir('server.js', path.join(raiz, 'frontend'), env, 'Frontend em'));
+    const pagina = async cookie => (await fetch(web + '/', { headers: cookie ? { Cookie: 'authelia_session=' + cookie } : {} })).text();
+    const post = async (cookie, fn, ...args) => {
+      const r = await fetch(`${web}/api/${fn}`, { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: web, ...(cookie ? { Cookie: 'outro=1; authelia_session=' + cookie } : {}) },
+        body: JSON.stringify({ args }) });
       return { status: r.status, corpo: await r.json() };
     };
+    const estadoLanding = html => JSON.parse(html.match(/window\.SAC_LANDING = (.*?);<\/script>/)[1]);
 
-    // Full login: SAC -> "Authelia" -> SAC, returning to the requested page with the session in the fragment
-    async function entrar(usuario, volta) {
-      const ida = await fetch(`${api}/api/auth/entrar?volta=${encodeURIComponent(volta || '/')}`, { redirect: 'manual' });
-      assert.equal(ida.status, 302);
-      const cookie = ida.headers.get('set-cookie');
-      assert.match(cookie, /^sac_oidc=[^;]+; Path=\/api\/auth; HttpOnly; SameSite=Lax; Max-Age=600; Secure$/);
-      const volta2 = fake.autorizar(ida.headers.get('location'), usuario);
-      assert.equal(volta2.origin + volta2.pathname, publico + '/api/auth/retorno');
-      const r = await fetch(api + volta2.pathname + volta2.search, { redirect: 'manual', headers: { Cookie: cookie.split(';')[0] } });
-      assert.equal(r.status, 302);
-      const destino = new URL(r.headers.get('location'));
-      const h = new URLSearchParams(destino.hash.slice(1));
-      return { destino, token: h.get('sso'), erro: h.get('sso-erro') };
-    }
+    const info = await (await fetch(web + '/api/auth/info')).json();
+    assert.deepEqual(info, { modo: 'authelia', entrar: aut.url + '/?rd=' + encodeURIComponent(web + '/'), sair: aut.url + '/logout?rd=' + encodeURIComponent(web + '/') });
 
-    assert.deepEqual(await (await fetch(api + '/api/auth/info')).json(), { modo: 'oidc', sair: fake.emissor + '/logout?rd=' + encodeURIComponent(publico + '/') });
-    for (const fn of ['entrar', 'trocarSenha', 'esqueciSenha', 'redefinirSenhaAcesso', 'salvarMembro']) {
-      assert.equal((await post(fn, 'admin', 'x')).status, 403, fn + ' must be disabled with Authelia');
-    }
+    // Without an Authelia session: only the landing page, with the login button
+    const landing = await pagina();
+    assert.match(landing, /id="lp-entrar" href="http:\/\/127\.0\.0\.1:\d+\/\?rd=/);
+    assert.doesNotMatch(landing, /js\/app\.js/, 'The SAC page must not be served without login.');
+    assert.equal(estadoLanding(landing).estado, 'anonimo');
+    assert.equal(estadoLanding(await pagina('cookie-desconhecido')).estado, 'anonimo');
+    assert.equal((await post(null, 'iniciar', 'x')).status, 401);
+    assert.equal((await post(null, 'dadosPublicos')).status, 200, 'The landing page reads public data without login.');
+    for (const ref of ['css/landing.css', 'js/landing.js', 'css/estilo.css']) assert.equal((await fetch(`${web}/${ref}`)).status, 200, ref);
+    assert.match(await (await fetch(web + '/?pesquisa=CH-1&k=abc')).text(), /js\/app\.js/, 'Survey links open without login.');
 
-    // Team: the LLDAP group defines the profile; the person is created on first login
-    const ana = await entrar({ preferred_username: 'Ana', name: 'Ana Souza', email: 'Ana@Innomaker.com.br', groups: ['sac_n1', 'outros'] }, '/?chamado=CH-1');
-    assert.equal(ana.erro, null);
-    assert.equal(ana.destino.origin + ana.destino.pathname + ana.destino.search, publico + '/?chamado=CH-1');
-    let eu = (await post('iniciar', ana.token)).corpo.resultado.usuario;
+    // Team: the Authelia session opens the SAC; the LLDAP group defines the profile
+    aut.sessoes.set('sessao-ana', { usuario: 'Ana', nome: 'Ana Souza', email: 'Ana@Innomaker.com.br', grupos: ['sac_n1', 'outros'] });
+    assert.match(await pagina('sessao-ana'), /js\/app\.js/);
+    const consulta = aut.consultas.at(-1);
+    assert.equal(consulta['x-original-url'], web + '/');
+    assert.equal(consulta['x-original-method'], 'GET');
+    assert.equal(consulta.cookie, 'authelia_session=sessao-ana', 'Only the Authelia cookie is forwarded.');
+    let eu = (await post('sessao-ana', 'iniciar', 'token-qualquer')).corpo.resultado.usuario;
     assert.deepEqual([eu.tipo, eu.login, eu.nome, eu.email, eu.perfil, eu.n1, eu.admin], ['equipe', 'ana', 'Ana Souza', 'ana@innomaker.com.br', 'N1', true, false]);
+    const antes = aut.consultas.length;
+    await post('sessao-ana', 'filaEquipe', 'x');
+    assert.equal(aut.consultas.length, antes, 'Authelia answers are cached for a few seconds.');
 
-    const chefe = await entrar({ preferred_username: 'chefe', name: 'Chefe', email: 'chefe@innomaker.com.br', groups: ['sac_n1', 'SAC_ADMIN'] });
-    assert.equal((await post('iniciar', chefe.token)).corpo.resultado.usuario.perfil, 'Admin', 'The highest profile wins.');
-    const equipe = (await post('listarEquipe', chefe.token)).corpo.resultado;
-    assert(equipe.some(m => m.Login === 'ana' && m.Perfil === 'N1' && m.Ativo));
+    aut.sessoes.set('sessao-chefe', { usuario: 'chefe', nome: 'Chefe', email: 'chefe@innomaker.com.br', grupos: ['sac_n1', 'SAC_ADMIN'] });
+    assert.equal((await post('sessao-chefe', 'iniciar')).corpo.resultado.usuario.perfil, 'Admin', 'The highest profile wins.');
+    for (const fn of ['entrar', 'trocarSenha', 'esqueciSenha', 'redefinirSenhaAcesso', 'salvarMembro']) {
+      assert.equal((await post('sessao-chefe', fn, 'admin', 'x')).status, 403, fn + ' must be disabled with Authelia');
+    }
+    const evil = await fetch(`${web}/api/iniciar`, { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: 'https://evil.innomaker.com.br', Cookie: 'authelia_session=sessao-chefe' }, body: '{"args":[]}' });
+    assert.equal(evil.status, 403, 'Calls from another origin are refused.');
 
-    // Clients: sac_projeto_<project login>, several LLDAP users share the project
-    assert.deepEqual((await post('sincronizarProjetos', chefe.token)).corpo.resultado.map(p => p.login), ['4.2.16.marinha.usv']);
-    const cliente = await entrar({ preferred_username: 'joao', name: 'João', email: 'joao@cliente.com', groups: ['sac_projeto_4_2_16_marinha_usv'] });
-    eu = (await post('iniciar', cliente.token)).corpo.resultado.usuario;
+    // Clients: sac_projeto_<project login>; several LLDAP users share the project
+    assert.deepEqual((await post('sessao-chefe', 'sincronizarProjetos')).corpo.resultado.map(p => p.login), ['4.2.16.marinha.usv']);
+    aut.sessoes.set('sessao-joao', { usuario: 'joao', nome: 'João', email: 'joao@cliente.com', grupos: ['sac_projeto_4_2_16_marinha_usv'] });
+    aut.sessoes.set('sessao-maria', { usuario: 'maria', nome: 'Maria', email: 'maria@cliente.com', grupos: ['sac_projeto_4_2_16_marinha_usv'] });
+    eu = (await post('sessao-joao', 'iniciar')).corpo.resultado.usuario;
     assert.deepEqual([eu.tipo, eu.login, eu.projeto, eu.email, eu.cadastroIncompleto], ['cliente', '4.2.16.marinha.usv', 'Marinha - USV', 'joao@cliente.com', false]);
-    const maria = await entrar({ preferred_username: 'maria', name: 'Maria', email: 'maria@cliente.com', groups: ['sac_projeto_4_2_16_marinha_usv'] });
-    assert.equal((await post('iniciar', maria.token)).corpo.resultado.usuario.login, '4.2.16.marinha.usv');
-    assert.equal((await post('listarProjetos', cliente.token)).status, 400, 'Clients are not admins.');
+    assert.equal((await post('sessao-maria', 'iniciar')).corpo.resultado.usuario.login, '4.2.16.marinha.usv');
+    assert.equal((await post('sessao-joao', 'listarProjetos')).status, 400, 'Clients are not admins.');
 
-    // Without a sac_ group: refused, and a former team member is deactivated
-    const sem = await entrar({ preferred_username: 'ana', name: 'Ana Souza', email: 'ana@innomaker.com.br', groups: ['outros'] });
-    assert.equal(sem.token, null);
-    assert.match(sem.erro, /ainda não tem acesso ao SAC/);
-    assert.equal((await post('iniciar', ana.token)).status, 401, 'The open session ends once the person leaves the groups.');
-    assert((await post('listarEquipe', chefe.token)).corpo.resultado.some(m => m.Login === 'ana' && !m.Ativo));
-    assert.match((await entrar({ preferred_username: '4.2.16.marinha.usv', groups: ['sac_n1'] })).erro, /mesmo nome do login de um projeto/);
+    // Logged in, but without a sac_ group (or blocked by Authelia rules): landing page with the reason
+    aut.sessoes.set('sessao-ana-sem-grupo', { usuario: 'ana', nome: 'Ana Souza', email: 'ana@innomaker.com.br', grupos: ['outros'] });
+    const semGrupo = estadoLanding(await pagina('sessao-ana-sem-grupo'));
+    assert.equal(semGrupo.estado, 'sem-acesso');
+    assert.match(semGrupo.erro, /ainda não tem acesso ao SAC/);
+    assert.equal(semGrupo.sair, info.sair);
+    assert.equal((await post('sessao-ana-sem-grupo', 'iniciar')).status, 403);
+    assert.equal((await post('sessao-ana', 'iniciar')).status, 401, 'An open session ends once the person leaves the groups.');
+    aut.sessoes.set('sessao-bloqueada', 'bloqueado');
+    assert.equal(estadoLanding(await pagina('sessao-bloqueada')).estado, 'sem-acesso');
+    aut.sessoes.set('sessao-xss', { usuario: 'x</script><img src=x onerror=alert(1)>', grupos: [] });
+    const xss = await pagina('sessao-xss');
+    assert.doesNotMatch(xss, /<\/script><img/, 'Messages are escaped inside the landing page.');
+    assert.equal(estadoLanding(xss).estado, 'sem-acesso');
 
-    // Security: state bound to the cookie, single use, and no open redirect
-    const ida = await fetch(`${api}/api/auth/entrar?volta=${encodeURIComponent('//evil.example/x')}`, { redirect: 'manual' });
-    const retorno = fake.autorizar(ida.headers.get('location'), { preferred_username: 'chefe', groups: ['sac_admin'] });
-    const semCookie = await fetch(api + retorno.pathname + retorno.search, { redirect: 'manual' });
-    assert.match(new URL(semCookie.headers.get('location')).hash, /^#sso-erro=/);
-    const comCookie = await fetch(api + retorno.pathname + retorno.search, { redirect: 'manual', headers: { Cookie: ida.headers.get('set-cookie').split(';')[0] } });
-    assert.match(new URL(comCookie.headers.get('location')).hash, /^#sso-erro=/, 'A state can only be used once.');
-    const desvio = await entrar({ preferred_username: 'chefe', groups: ['sac_admin'] }, 'https://evil.example/');
-    assert.equal(desvio.destino.origin + desvio.destino.pathname, publico + '/');
+    // Logout: the SAC session ends and, once Authelia drops its session, only the landing page is left
+    assert.equal((await post('sessao-chefe', 'sair', 'x')).status, 200);
+    aut.sessoes.delete('sessao-chefe');
+    assert.equal((await post('sessao-chefe', 'iniciar')).status, 401);
+    assert.equal(estadoLanding(await pagina('sessao-chefe')).estado, 'anonimo');
+
+    // Authelia down: a clear message, not an error page
+    aut.servidor.close();
+    aut.servidor.closeAllConnections();
+    assert.equal(estadoLanding(await pagina('sessao-nova')).estado, 'indisponivel');
 
     // Frontend and backend compute the same LLDAP group names
     const ctx = vm.createContext({ S: {} });
     const js = fs.readFileSync(path.join(raiz, 'frontend/public/js/app.js'), 'utf8');
     vm.runInContext(js.slice(js.indexOf('const sso ='), js.indexOf('const guarda =')), ctx);
-    const { criarExecutor } = require('../backend/src/nucleo/executor');
     process.env.DATA_DIR = env.DATA_DIR;
+    const { criarExecutor } = require('../backend/src/nucleo/executor');
     const regras = criarExecutor(fs.readFileSync(path.join(raiz, 'backend/src/regras/Codigo.gs'), 'utf8'), { ativo: false, despachar() {} });
-    for (const nome of ['Admin', 'N1', 'Suporte de Campo', 'Pós-venda', 'projeto marinha.usv', 'projeto 4-2_01']) {
+    for (const nome of ['Admin', 'N1', 'Suporte de Campo', 'Pós-venda', 'projeto 4.2.16.marinha.usv', 'projeto 4-2_01']) {
       assert.equal(vm.runInContext(`grupoLldap(${JSON.stringify(nome)})`, ctx), regras.executar('grupoLldap_', [nome]), nome);
     }
-  } finally { backend.removeAllListeners('exit'); backend.kill(); fake.servidor.close(); }
-  console.log('OK: login pelo Authelia (OIDC + PKCE), perfis pelos grupos do LLDAP, clientes por projeto, recusa, senhas desligadas, state de uso único e sem redirecionamento aberto.');
+  } finally { filhos.forEach(f => { f.removeAllListeners('exit'); f.kill(); }); aut.servidor.close(); }
+  console.log('OK: landing page sem sessão, SAC com a sessão do Authelia, perfis pelos grupos do LLDAP, clientes por projeto, sem acesso, senhas desligadas, origem, saída e Authelia fora do ar.');
 }
 main().catch(e => { console.error(e); process.exitCode = 1; });

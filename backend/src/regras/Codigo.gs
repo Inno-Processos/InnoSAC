@@ -697,8 +697,8 @@ function trocarSenha(token, atual, nova) {
   return true;
 }
 
-// ───────────────────────── Login pelo Authelia/LLDAP (OIDC) ─────────────────────────
-// O backend confirma a identidade com o Authelia e chama entrarExterno_; o navegador não chega aqui.
+// ───────────────────────── Login pelo Authelia/LLDAP ─────────────────────────
+// O backend confirma a sessão com o Authelia (cookie authelia_session) e chama entrarExterno_; o navegador não chega aqui.
 // Os grupos do LLDAP definem o acesso: sac_admin, sac_n1 e sac_<setor> para a equipe,
 // sac_projeto_<login do projeto> para os clientes. Quem não está em nenhum grupo sac_ não entra.
 

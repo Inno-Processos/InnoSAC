@@ -23,7 +23,7 @@ const SacApi = (() => {
     return dados.resultado === undefined ? null : dados.resultado;
   }
 
-  // Como entrar: { modo: 'senha' } (login do SAC) ou { modo: 'oidc', sair } (Authelia)
+  // Como entrar: { modo: 'senha' } (login do SAC) ou { modo: 'authelia', entrar, sair } (conta Innomaker)
   async function infoLogin() {
     try {
       const r = await fetch(`${base}/api/auth/info`);
@@ -32,8 +32,5 @@ const SacApi = (() => {
     return { modo: 'senha', sair: '' };
   }
 
-  // Endereço que leva ao login do Authelia e, depois, de volta para "volta" (caminho do portal)
-  const urlEntrar = volta => `${base}/api/auth/entrar?volta=${encodeURIComponent(volta || '/')}`;
-
-  return { chamar, infoLogin, urlEntrar };
+  return { chamar, infoLogin };
 })();
