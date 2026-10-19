@@ -577,7 +577,6 @@ async function telaCliente() {
       <div><b>${lista.filter(c => c.Status === 'Resolvido').length}</b>soluções para conferir</div>
       <div><b>${lista.filter(c => c.Status === 'Fechado').length}</b>finalizados</div>
     </div>
-    ${S.base.manuais.length ? `<details class="faixa-manuais"><summary>Manuais do sistema: consulte antes de abrir um chamado</summary>${listaManuais(S.base.manuais)}</details>` : ''}
     ${S.usuario.cadastroIncompleto ? `<div class="painel-acao atencao"><b>${S.usuario.email ? 'Diga como prefere ser chamado.' : 'Cadastre seu e-mail para receber os avisos dos chamados.'}</b>
       <button class="btn-link" id="b-completar">Completar meu cadastro</button></div>` : ''}
     ${pend.length ? `<div class="painel-acao"><b>Conte como foi o atendimento.</b> ${pend.length === 1 ? 'Um chamado fechado espera' : pend.length + ' chamados fechados esperam'} sua avaliação:

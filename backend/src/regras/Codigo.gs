@@ -194,7 +194,6 @@ function instalar() {
     });
   });
   semear_('Categorias', CATEGORIAS_PADRAO.map(function (c) { return [c]; }));
-  semear_('Manuais', [['Manual do usuário', 'Visão geral do sistema (troque pelo link real em Configurações > Manuais)', 'https://cole-aqui-o-link-do-manual', 1, '', 'Clientes', '', Utilities.getUuid().slice(0, 8)]]);
   semear_('Feriados', feriadosPadrao_());
 
   ['Página1', 'Planilha1', 'Sheet1'].forEach(function (n) {
