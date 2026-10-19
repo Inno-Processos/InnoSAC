@@ -260,6 +260,8 @@ function iconeInterface(nome) {
     excluir: '<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>',
     ver: '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>',
     relogio: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+    clipe: '<path d="m20 11.5-8.2 8.2a5.5 5.5 0 0 1-7.8-7.8L12.6 3.3a3.7 3.7 0 0 1 5.2 5.2l-8.5 8.5a1.8 1.8 0 0 1-2.6-2.6l7.9-7.9"/>',
+    enviar: '<path d="M4 12 20 4l-4 16-4.5-6.5L4 12Z"/><path d="m11.5 13.5 4-4"/>',
     modulos: '<rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/>'
   };
   return `<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${desenhos[nome] || desenhos.fila}</svg>`;
@@ -290,7 +292,7 @@ function topo() {
   document.title = 'SAC · ' + titulo;
   const u = S.usuario;
   const iniciais = String(u.nome || u.projeto || 'SAC').trim().split(/\s+/).slice(0, 2).map(n => n.charAt(0)).join('').toUpperCase();
-  quem.innerHTML = `<span class="avatar" aria-hidden="true">${esc(iniciais)}</span><span class="quem-id" translate="no">${esc(u.tipo === 'cliente' ? 'Login ' + u.login : u.nome + ' · ' + u.perfil)}</span>
+  quem.innerHTML = `<span class="avatar" aria-hidden="true">${esc(iniciais)}</span><span class="quem-id" translate="no">${esc(u.tipo === 'cliente' ? (u.contaLldap ? u.nome : 'Login ' + u.login) : u.nome + ' · ' + u.perfil)}</span>
     ${u.tipo === 'cliente' && !u.contaLldap ? `<button class="btn btn-fantasma" id="btn-cadastro">${iconeInterface('cadastro')}Meu cadastro</button>` : ''}
     ${sso() ? '' : `<button class="btn btn-fantasma" id="btn-senha">${iconeInterface('senha')}Trocar senha</button>`}
     <button class="btn btn-fantasma" id="btn-sair">${iconeInterface('sair')}Sair</button>`;
@@ -988,7 +990,7 @@ function montarChat(c, d) {
   };
   const rotulo = { cliente: u.tipo === 'cliente' ? 'Atendimento' : 'Chat com o projeto', equipe: 'Chat interno da equipe' };
   $('#chat').innerHTML = `
-    <div class="chat-topo"><h2>Chat do chamado</h2><div class="presenca" id="presenca"></div></div>
+    <div class="chat-topo"><h2>Conversa</h2><div class="presenca" id="presenca"></div></div>
     ${canais.length > 1 ? `<div class="chat-abas" role="tablist">${canais.map(k => `<button role="tab" data-canal="${k}">${rotulo[k]}<span class="badge" data-badge="${k}" hidden></span></button>`).join('')}</div>` : ''}
     <div class="chat-feed" id="feed" role="log" aria-live="polite"></div>
     <div class="digitando" id="digitando"></div>
@@ -1029,9 +1031,18 @@ function desenharFeed(rolar) {
     const hoje = new Date().toLocaleDateString('pt-BR', { timeZone: TZ, day: '2-digit', month: 'long', year: 'numeric' });
     return `<div class="dia">${d === hoje ? 'Hoje' : d}</div>`;
   };
-  html += separador(ch.c.Abertura) + `<div class="bolha abertura"><div class="autor">${esc(ch.c.Usuario || ch.c.Projeto)}, ao abrir o chamado</div>
+  html += separador(ch.c.Abertura) + `<div class="bolha abertura"><div class="autor">${esc(ch.c.Usuario || ch.c.Projeto)} abriu o chamado</div>
     <div class="corpo">${esc(ch.c.Descricao)}</div><div class="hora">${fmtDH(ch.c.Abertura)}</div></div>`;
-  itensDoCanal(ch.canal).forEach(h => { html += separador(h.DataHora) + bolhaChat(h); });
+  // Mensagens seguidas do mesmo autor (até 5 min) formam um grupo: o nome aparece só na primeira
+  let anterior = null;
+  itensDoCanal(ch.canal).forEach(h => {
+    const sep = separador(h.DataHora);
+    const evento = !reagivel(h);
+    const quem = h.meu ? 'eu' : h.Perfil + '|' + h.Autor;
+    const continua = !evento && !sep && anterior && anterior.quem === quem && new Date(h.DataHora) - anterior.hora < 5 * 60000;
+    html += sep + bolhaChat(h, continua);
+    anterior = evento ? null : { quem, hora: new Date(h.DataHora) };
+  });
   feed.innerHTML = html;
   $$('[data-arq]', feed).forEach(b => b.onclick = () => baixar(ch.id, b.dataset.arq, b));
   ligarAcoesChat(feed);
@@ -1050,11 +1061,11 @@ const resumoChat = h => h.Tipo === 'ANEXO' ? 'Arquivo: ' + h.Texto : String(h.Te
 // Pode responder no canal aberto? (mesma regra do campo de mensagem)
 const podeEscreverCanal = () => { const ch = S.chat; return !!ch && (ch.canal === 'equipe' || (ch.podeCliente && ch.acoes.responder)); };
 
-function bolhaChat(h) {
+function bolhaChat(h, continua) {
   const hora = new Date(h.DataHora).toLocaleTimeString('pt-BR', { timeZone: TZ, hour: '2-digit', minute: '2-digit' });
-  if (h.Tipo === 'STATUS') return `<div class="evento">${hora}, status: <b>${esc(h.Texto)}</b></div>`;
-  if (h.Tipo === 'AVISO' || h.Tipo === 'PESQUISA') return `<div class="evento">${hora}, ${esc(h.Texto)}</div>`;
-  const autor = h.meu ? '' : esc(nomeAutorChat(h));
+  if (h.Tipo === 'STATUS') return `<div class="evento">Status: <b>${esc(h.Texto)}</b> <span>${hora}</span></div>`;
+  if (h.Tipo === 'AVISO' || h.Tipo === 'PESQUISA') return `<div class="evento">${esc(h.Texto)} <span>${hora}</span></div>`;
+  const autor = h.meu || continua ? '' : esc(nomeAutorChat(h));
   const corpo = h.Tipo === 'ANEXO'
     ? `<div class="arquivo"><span>Arquivo: <b>${esc(h.Texto)}</b></span>${h.Ref ? `<button data-arq="${esc(h.Ref)}">Baixar</button>` : ''}</div>`
     : `<div class="corpo">${esc(h.Texto)}</div>`;
@@ -1066,7 +1077,8 @@ function bolhaChat(h) {
   const acoes = reagivel(h) ? `<div class="msg-acoes">
     <button type="button" class="msg-acao" data-abrir-reacoes="${esc(h.Id)}" aria-label="Reagir" title="Reagir">☺</button>
     ${podeEscreverCanal() ? `<button type="button" class="msg-acao" data-responder="${esc(h.Id)}" aria-label="Responder" title="Responder">↩</button>` : ''}</div>` : '';
-  return `<div class="bolha ${h.meu ? 'meu' : ''}" ${h.Id ? `data-msg="${esc(h.Id)}"` : ''}>${acoes}${autor ? `<div class="autor">${autor}</div>` : ''}${citacao}${corpo}<div class="hora">${hora}</div>${reacoes}</div>`;
+  const classes = ['bolha', h.meu ? 'meu' : '', continua ? 'cont' : '', reacoes ? 'com-reacoes' : '', h.Perfil === 'Sistema' ? 'sistema' : ''].filter(Boolean).join(' ');
+  return `<div class="${classes}" ${h.Id ? `data-msg="${esc(h.Id)}"` : ''}>${acoes}${autor ? `<div class="autor">${autor}</div>` : ''}${citacao}${corpo}<div class="hora">${hora}</div>${reacoes}</div>`;
 }
 
 function ligarAcoesChat(feed) {
@@ -1117,9 +1129,11 @@ function desenharRodape() {
   const resp = ch.respondendo && ch.respondendo.canal === ch.canal ? ch.respondendo.item : null;
   rod.innerHTML = `${resp ? `<div class="respondendo"><div><b>Respondendo a ${esc(nomeAutorChat(resp))}</b><span>${esc(resumoChat(resp))}</span></div>
       <button type="button" class="msg-acao" id="b-cancelar-resposta" aria-label="Cancelar resposta" title="Cancelar resposta">✕</button></div>` : ''}<div class="chat-compor">
-    ${ch.acoes.anexar || ch.canal === 'equipe' ? `<label class="clip" title="Enviar arquivo" aria-label="Enviar arquivo"><input type="file" id="chat-arq" multiple>📎</label>` : ''}
-    <textarea id="chat-txt" rows="1" placeholder="${ph}" aria-label="${ph}"></textarea>
-    <button class="btn btn-primario" id="chat-env">Enviar</button></div>`;
+    <div class="campo-msg">
+      ${ch.acoes.anexar || ch.canal === 'equipe' ? `<label class="clip" title="Enviar arquivo" aria-label="Enviar arquivo"><input type="file" id="chat-arq" multiple>${iconeInterface('clipe')}</label>` : ''}
+      <textarea id="chat-txt" rows="1" placeholder="${ph}" aria-label="${ph}"></textarea>
+    </div>
+    <button class="btn-enviar" id="chat-env" aria-label="Enviar mensagem" title="Enviar (Enter)">${iconeInterface('enviar')}</button></div>`;
   const ta = $('#chat-txt');
   ta.value = S.rascunhos[ch.id + ':' + ch.canal] || '';
   const crescer = () => { ta.style.height = 'auto'; ta.style.height = Math.min(ta.scrollHeight, 160) + 'px'; };

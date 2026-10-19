@@ -1,0 +1,254 @@
+/* SAC Innomaker — camada visual da área logada (carregada por último).
+   Tela de trabalho: um fundo neutro, cartões brancos com borda fina e sem sombra, o verde da marca
+   só nas ações e no que é do cliente. Cantos suaves decididos uma vez: cartões 16, painéis 12,
+   campos 10, botões e etiquetas totalmente arredondados. */
+
+body.sac-interno {
+  --papel: #f5f6f4;          /* fundo da página, do topo e do menu */
+  --superficie: #ffffff;     /* cartões */
+  --elevado: #f9faf8;        /* realce dentro de um cartão (hover, painéis internos) */
+  --ativo: #e9ece7;          /* item ativo do menu */
+  --linha: #e4e7e2;          /* borda de cartões */
+  --regra: #eef0ec;          /* divisórias de linhas */
+  --controle: #cfd5cc;       /* borda de campos e botões */
+  --texto: #171c17;
+  --suave: #5c645b;          /* 6:1 sobre branco */
+  --marca: #41a639;
+  --acento: #2c7a26;         /* ações: 5,3:1 com texto branco */
+  --acento-claro: #e7f3e4;
+  --tinta: #1f5a1b;
+  --feed: #eef1ec;           /* fundo do chat */
+  --bolha-outro: #ffffff;
+  --bolha-minha: #d9f1d2;
+  --bolha-minha-texto: #10260e;
+  --nota: #fff6d6; --nota-borda: #ead27c; --feed-interno: #faf5e3;
+  --raio-p: 10px; --raio-g: 16px;
+  --lateral: 232px;
+  --altura-topo: 64px;
+  background: var(--papel);
+  color: var(--texto);
+  font-size: 14px;
+}
+@media (prefers-color-scheme: dark) {
+  body.sac-interno {
+    --papel: #0f1210; --superficie: #171b18; --elevado: #1c211d; --ativo: #252b26;
+    --linha: #262c27; --regra: #20251f; --controle: #3a423b;
+    --texto: #eef1ed; --suave: #a3aca2;
+    --acento: #6cc964; --acento-claro: #1b2a1b; --tinta: #9be094;
+    --feed: #121513; --bolha-outro: #1f2520; --bolha-minha: #1f3d1c; --bolha-minha-texto: #e3f5df;
+    --nota: #2a2614; --nota-borda: #5c5124; --feed-interno: #17150d;
+  }
+}
+
+/* ───────── Moldura: topo e menu no mesmo fundo da página, sem bordas ───────── */
+body.sac-interno .topo { background: var(--papel); border-bottom: 0; min-height: var(--altura-topo); padding: 12px 28px; }
+body.sac-interno .marca { gap: 12px; }
+body.sac-interno .marca b { width: 38px; height: 34px; border-radius: 10px 10px 10px 3px; font-size: 15px; }
+body.sac-interno .marca span { font-family: var(--fonte); font-stretch: 100%; font-size: 15px; font-weight: 600; letter-spacing: -.01em; }
+body.sac-interno .avatar { width: 32px; height: 32px; background: var(--ativo); color: var(--texto); }
+body.sac-interno .quem-id { color: var(--suave); font-size: 13px; }
+body.sac-interno .topo .btn-fantasma { min-height: 34px; padding: 6px 12px; border-radius: 999px; font-size: 13px; color: var(--suave); }
+body.sac-interno .topo .btn-fantasma:hover { background: var(--ativo); color: var(--texto); }
+
+body.sac-interno nav.abas { background: var(--papel); border-right: 0; padding: 12px 12px 24px; gap: 2px; }
+body.sac-interno .nav-grupo { gap: 2px; margin-bottom: 18px; }
+body.sac-interno .nav-grupo-titulo { font-size: 12px; font-weight: 500; color: var(--suave); padding: 0 12px 6px; }
+body.sac-interno nav.abas button { padding: 9px 12px; border-radius: 10px; font-size: 14px; font-weight: 500; color: var(--texto); gap: 10px; }
+body.sac-interno nav.abas button .ico { width: 18px; height: 18px; color: var(--suave); }
+body.sac-interno nav.abas button:hover { background: var(--ativo); color: var(--texto); }
+body.sac-interno nav.abas button[aria-current="page"] { background: var(--ativo); color: var(--texto); font-weight: 600; box-shadow: none; }
+body.sac-interno nav.abas button[aria-current="page"] .ico { color: var(--texto); }
+body.sac-interno main { padding: 20px 40px 64px; }
+
+/* ───────── Tipografia: títulos no Archivo da marca, o resto em Public Sans ───────── */
+body.sac-interno h1 { font-size: 28px; line-height: 1.15; letter-spacing: -.02em; font-weight: 700; }
+body.sac-interno h2 { font-size: 18px; line-height: 1.3; letter-spacing: -.01em; font-weight: 650; }
+body.sac-interno h3 { font-size: 15px; font-weight: 650; }
+body.sac-interno .cabeca-lista { margin: 4px 0 24px; }
+body.sac-interno .cabeca-lista p { font-size: 14px; color: var(--suave); }
+body.sac-interno .suave { color: var(--suave); }
+
+/* ───────── Botões e campos ───────── */
+body.sac-interno .btn { min-height: 38px; padding: 8px 18px; border-radius: 999px; border-color: var(--controle); font-size: 14px; font-weight: 600; }
+body.sac-interno .btn:hover { background: var(--elevado); border-color: var(--suave); }
+body.sac-interno .btn-primario { background: var(--acento); border-color: var(--acento); color: #fff; }
+body.sac-interno .btn-primario:hover { background: var(--tinta); border-color: var(--tinta); color: #fff; }
+@media (prefers-color-scheme: dark) {
+  body.sac-interno .btn-primario, body.sac-interno .btn-primario:hover { color: #0c1a0b; }
+  body.sac-interno .btn-primario:hover { background: var(--tinta); border-color: var(--tinta); }
+}
+body.sac-interno .btn-link { color: var(--acento); font-size: 14px; }
+body.sac-interno input[type=text], body.sac-interno input[type=email], body.sac-interno input[type=tel],
+body.sac-interno input[type=date], body.sac-interno input[type=search], body.sac-interno input[type=password],
+body.sac-interno input[type=number], body.sac-interno input:not([type]), body.sac-interno select, body.sac-interno textarea {
+  min-height: 40px; padding: 9px 12px; border: 1px solid var(--controle); border-radius: 10px; background: var(--superficie); color: var(--texto); font-size: 14px;
+}
+body.sac-interno input:focus, body.sac-interno textarea:focus, body.sac-interno select:focus { border-color: var(--acento); outline: 3px solid var(--acento-claro); outline-offset: 0; }
+body.sac-interno label { font-size: 13px; font-weight: 600; margin-bottom: 8px; }
+body.sac-interno .campo { margin-bottom: 18px; }
+body.sac-interno .campo .ajuda, body.sac-interno .ajuda { font-size: 12px; color: var(--suave); line-height: 1.55; }
+body.sac-interno .opcoes label { border-color: var(--controle); border-radius: 999px; padding: 8px 16px; font-size: 13px; }
+body.sac-interno .opcoes label:has(input:checked) { border-color: var(--acento); background: var(--acento-claro); }
+
+/* ───────── Cartões, tabelas, listas ───────── */
+body.sac-interno .bloco { border-radius: var(--raio-g); border-color: var(--linha); box-shadow: none; padding: 24px; }
+body.sac-interno table { font-size: 14px; }
+body.sac-interno th { background: transparent; font-size: 12px; font-weight: 500; color: var(--suave); text-transform: none; letter-spacing: 0; padding: 12px 18px 10px; border-bottom: 1px solid var(--linha); }
+body.sac-interno td { padding: 14px 18px; border-bottom: 1px solid var(--regra); }
+body.sac-interno tbody tr:hover { background: var(--elevado); }
+body.sac-interno td code { background: var(--elevado); border: 1px solid var(--regra); }
+body.sac-interno .tabela-cadastro { border-color: var(--linha); box-shadow: none; }
+body.sac-interno .tabela-cadastro th { border-bottom: 1px solid var(--linha); font-size: 12px; font-weight: 500; color: var(--suave); }
+body.sac-interno .tabela-cadastro tbody tr:hover { background: var(--elevado); }
+body.sac-interno .painel-cab { box-shadow: none; border-color: var(--linha); }
+
+/* Contadores: uma faixa única dividida, não um cartão por número */
+body.sac-interno .contadores { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0; background: var(--superficie); border: 1px solid var(--linha); border-radius: var(--raio-g); overflow: hidden; margin-bottom: 20px; }
+body.sac-interno .contadores > div { background: transparent; border: 0; border-radius: 0; padding: 16px 20px; font-size: 13px; color: var(--suave); }
+body.sac-interno .contadores > div + div { border-left: 1px solid var(--regra); }
+body.sac-interno .contadores b { font-family: var(--fonte); font-size: 26px; font-weight: 650; letter-spacing: -.02em; margin: 0 0 2px; }
+body.sac-interno .contadores .alerta { border-top: 0; padding-top: 16px; }
+
+/* Filtros sobre o fundo, sem caixa */
+body.sac-interno .filtros { background: transparent; border: 0; padding: 0; margin-bottom: 14px; }
+
+/* Lista de chamados: uma lista com divisórias, não uma caixa por chamado */
+body.sac-interno .lista { gap: 0; background: var(--superficie); border: 1px solid var(--linha); border-radius: var(--raio-g); overflow: hidden; }
+body.sac-interno .linha-ch { border: 0; border-bottom: 1px solid var(--regra); border-radius: 0; padding: 16px 20px; background: transparent; }
+body.sac-interno .linha-ch:last-child { border-bottom: 0; }
+body.sac-interno .linha-ch:hover { background: var(--elevado); border-color: var(--regra); }
+body.sac-interno .linha-ch.bloq { box-shadow: inset 3px 0 var(--bloqueio); }
+body.sac-interno .linha-ch .tit { font-size: 15px; font-weight: 600; }
+body.sac-interno .linha-ch .meta { font-size: 12px; color: var(--suave); }
+body.sac-interno .protocolo { font-family: var(--fonte); font-stretch: 100%; font-size: 13px; font-weight: 600; letter-spacing: 0; color: var(--suave); }
+body.sac-interno .vazio { border: 1px dashed var(--controle); background: transparent; border-radius: var(--raio-g); }
+
+/* Etiquetas de status: tom claro com texto escuro do mesmo tom */
+body.sac-interno .chip { font-size: 12px; font-weight: 600; padding: 3px 10px; line-height: 1.4; }
+
+/* Painéis de ação do cliente: tom de fundo, sem barra lateral */
+body.sac-interno .painel-acao { border: 1px solid color-mix(in srgb, var(--acento) 30%, var(--linha)); border-radius: var(--raio-g); background: var(--acento-claro); padding: 18px 20px; }
+body.sac-interno .painel-acao.atencao { border-color: color-mix(in srgb, var(--atencao) 35%, var(--linha)); background: var(--atencao-claro); }
+body.sac-interno .painel-fechar { background: var(--superficie); border-color: var(--linha); }
+
+/* Trilha do chamado */
+body.sac-interno .trilha { border-color: var(--linha); border-radius: var(--raio-g); }
+
+/* ───────── Chat ───────── */
+body.sac-interno .chat { padding: 0; border-radius: var(--raio-g); overflow: hidden; border-color: var(--linha); }
+body.sac-interno .chat-topo { padding: 14px 20px; background: var(--superficie); border-bottom: 1px solid var(--linha); }
+body.sac-interno .chat-topo h2 { font-size: 16px; }
+body.sac-interno .presenca { font-size: 13px; }
+body.sac-interno .presenca span::before { width: 7px; height: 7px; }
+
+/* Canais (com o cliente / interno) como controle segmentado */
+body.sac-interno .chat-abas { display: inline-flex; gap: 2px; margin: 12px 20px; padding: 3px; border: 0; border-radius: 999px; background: var(--ativo); }
+body.sac-interno .chat-abas button { border: 0; border-radius: 999px; padding: 6px 14px; font-size: 13px; font-weight: 600; color: var(--suave); }
+body.sac-interno .chat-abas button[aria-selected="true"] { background: var(--superficie); color: var(--texto); box-shadow: 0 1px 2px #0000001a; }
+body.sac-interno .chat-abas button[data-canal="equipe"][aria-selected="true"] { background: var(--nota); }
+
+body.sac-interno .chat-feed { height: min(66vh, 640px); padding: 18px 24px 24px; gap: 2px; background: var(--feed); }
+body.sac-interno .chat-feed.interno { background: var(--feed-interno); }
+body.sac-interno .dia { margin: 14px 0 10px; padding: 3px 12px; font-size: 12px; font-weight: 600; color: var(--suave); background: var(--superficie); border: 0; }
+body.sac-interno .evento { margin: 8px 0; padding: 4px 12px; border-radius: 999px; background: color-mix(in srgb, var(--superficie) 70%, transparent); font-size: 12px; color: var(--suave); }
+body.sac-interno .evento span { margin-left: 4px; opacity: .8; }
+
+body.sac-interno .bolha {
+  max-width: min(72%, 560px); margin-top: 10px; padding: 8px 12px 6px; border: 0;
+  border-radius: 6px 18px 18px 18px; background: var(--bolha-outro); color: var(--texto);
+  font-size: 14px; line-height: 1.45; box-shadow: none;
+}
+body.sac-interno .bolha.meu { border-radius: 18px 6px 18px 18px; background: var(--bolha-minha); color: var(--bolha-minha-texto); }
+body.sac-interno .bolha.cont { margin-top: 2px; border-radius: 18px; }
+body.sac-interno .bolha.com-reacoes { margin-bottom: 14px; }
+body.sac-interno .bolha.sistema { background: var(--superficie); border: 1px solid var(--linha); }
+body.sac-interno .bolha .autor { font-size: 12px; font-weight: 650; color: var(--acento); opacity: 1; margin-bottom: 2px; }
+body.sac-interno .bolha.sistema .autor { color: var(--suave); }
+body.sac-interno .bolha .corpo { white-space: pre-wrap; }
+body.sac-interno .bolha .hora { float: right; margin: 6px 0 -2px 12px; font-size: 11px; color: var(--suave); opacity: 1; line-height: 1.2; }
+body.sac-interno .bolha.meu .hora { color: color-mix(in srgb, var(--bolha-minha-texto) 65%, transparent); }
+body.sac-interno .bolha::after { content: ""; display: block; clear: both; }
+body.sac-interno .bolha.abertura {
+  align-self: stretch; max-width: 100%; margin-top: 0; padding: 14px 16px 10px; border: 1px solid var(--linha);
+  border-radius: 14px; background: var(--superficie); color: var(--texto); box-shadow: none;
+}
+body.sac-interno .bolha.abertura .autor { color: var(--suave); font-weight: 600; }
+body.sac-interno .bolha .arquivo { gap: 12px; padding: 4px 0; }
+body.sac-interno .bolha .arquivo button { border-radius: 999px; padding: 4px 12px; font-size: 12px; }
+body.sac-interno .chat-feed.interno .bolha { background: var(--nota); color: var(--texto); }
+body.sac-interno .chat-feed.interno .bolha.meu { background: var(--superficie); }
+
+/* Citação de resposta e reações sobre a borda */
+body.sac-interno .citacao { background: color-mix(in srgb, var(--texto) 6%, transparent); border-left-color: var(--acento); }
+body.sac-interno .bolha.meu .citacao { background: color-mix(in srgb, var(--bolha-minha-texto) 8%, transparent); border-left-color: var(--acento); }
+/* Sempre à esquerda: a hora fica à direita da bolha e não pode ser coberta */
+body.sac-interno .reacoes { position: absolute; bottom: -14px; left: 10px; margin: 0; }
+body.sac-interno .reacao { padding: 1px 7px; font-size: 13px; background: var(--superficie); border: 1px solid var(--feed); box-shadow: 0 1px 2px #0000001f; }
+body.sac-interno .reacao.minha { background: var(--acento-claro); border-color: var(--acento-claro); }
+
+/* Ações da mensagem ao lado da bolha */
+body.sac-interno .msg-acoes { top: 50%; right: auto; left: calc(100% + 8px); transform: translateY(-50%); flex-direction: row; }
+body.sac-interno .bolha.meu .msg-acoes { left: auto; right: calc(100% + 8px); }
+body.sac-interno .msg-acao { width: 30px; height: 30px; background: var(--superficie); border-color: var(--linha); box-shadow: none; color: var(--suave); }
+body.sac-interno .seletor-reacao { top: auto; bottom: calc(100% + 6px); left: 0; right: auto; }
+body.sac-interno .bolha.meu .seletor-reacao { left: auto; right: 0; }
+
+body.sac-interno .digitando { padding: 4px 24px; min-height: 24px; font-size: 12px; background: var(--feed); }
+
+/* Barra de envio: campo arredondado com o clipe dentro, botão redondo de enviar */
+body.sac-interno .respondendo { padding: 10px 20px 0; border-top: 1px solid var(--linha); background: var(--superficie); }
+body.sac-interno .respondendo > div { background: var(--elevado); border-radius: 10px; padding: 8px 12px; border-left-color: var(--acento); }
+body.sac-interno .respondendo + .chat-compor { border-top: 0; }
+body.sac-interno .chat-compor { align-items: flex-end; gap: 10px; padding: 12px 16px 14px; background: var(--superficie); border-top: 1px solid var(--linha); }
+body.sac-interno .campo-msg {
+  flex: 1; display: flex; align-items: flex-end; gap: 2px; min-width: 0;
+  border: 1px solid var(--controle); border-radius: 22px; background: var(--superficie); padding: 2px 6px 2px 4px;
+}
+body.sac-interno .campo-msg:focus-within { border-color: var(--acento); outline: 3px solid var(--acento-claro); }
+body.sac-interno .campo-msg textarea, body.sac-interno .chat-compor textarea {
+  flex: 1; min-height: 40px; max-height: 160px; padding: 10px 10px; border: 0; border-radius: 0; background: transparent; resize: none; outline: none; box-shadow: none;
+}
+body.sac-interno .campo-msg textarea:focus { outline: none; }
+body.sac-interno .clip { width: 38px; height: 38px; margin: 1px 0; border: 0; border-radius: 50%; color: var(--suave); }
+body.sac-interno .clip:hover { background: var(--elevado); color: var(--texto); }
+body.sac-interno .clip .ico { width: 20px; height: 20px; }
+body.sac-interno .btn-enviar {
+  display: grid; place-items: center; flex: none; width: 46px; height: 46px; padding: 0; border: 0; border-radius: 50%;
+  background: var(--acento); color: #fff; cursor: pointer;
+}
+body.sac-interno .btn-enviar:hover { background: var(--tinta); }
+body.sac-interno .btn-enviar:disabled { opacity: .55; }
+body.sac-interno .btn-enviar .ico { width: 20px; height: 20px; }
+@media (prefers-color-scheme: dark) { body.sac-interno .btn-enviar { color: #0c1a0b; } }
+body.sac-interno .chat-fechado { padding: 16px 20px; font-size: 13px; text-align: center; }
+
+/* Painel lateral do chamado */
+body.sac-interno .lateral > .bloco { padding: 20px; }
+body.sac-interno dl.dados { font-size: 13px; gap: 10px 16px; }
+
+/* Modal */
+body.sac-interno .editor-modal { border-color: var(--linha); box-shadow: 0 24px 64px #0000002e; }
+
+/* ───────── Telas menores ───────── */
+@media (max-width: 1180px) { body.sac-interno main { padding: 20px 24px 48px; } }
+@media (max-width: 880px) {
+  body.sac-interno nav.abas { background: var(--papel); border-bottom: 1px solid var(--linha); padding: 8px 12px; }
+  body.sac-interno nav.abas button { padding: 8px 12px; font-size: 13px; }
+  body.sac-interno .topo { padding: 10px 16px; }
+}
+@media (max-width: 640px) {
+  body.sac-interno main { padding: 16px 16px 40px; }
+  body.sac-interno h1 { font-size: 24px; }
+  body.sac-interno .chat-feed { padding: 14px 12px 20px; height: min(62vh, 560px); }
+  body.sac-interno .bolha { max-width: 86%; }
+  body.sac-interno .msg-acoes { left: auto; right: 6px; top: -14px; transform: none; }
+  body.sac-interno .bolha.meu .msg-acoes { right: auto; left: 6px; }
+  body.sac-interno .chat-compor { padding: 10px 10px 12px; }
+  body.sac-interno .contadores { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  body.sac-interno .contadores > div:nth-child(odd) { border-left: 0; }
+  body.sac-interno .contadores > div:nth-child(n+3) { border-top: 1px solid var(--regra); }
+  body.sac-interno .linha-ch { padding: 14px 16px; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  body.sac-interno .msg-acoes { transition: opacity .15s; }
+}
