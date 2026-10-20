@@ -833,10 +833,18 @@ async function telaDetalhe(id) {
           <dt>Login</dt><dd>${esc(c.contato.login)}</dd><dt>Responsável</dt><dd>${esc(c.contato.usuario || '—')}</dd><dt>E-mail</dt><dd>${esc(c.contato.email || 'sem e-mail: não recebe avisos')}</dd>
           ${c.contato.telefone ? `<dt>Telefone</dt><dd>${esc(c.contato.telefone)}</dd>` : ''}</dl>` : ''}
       </div>
+      ${a.excluir ? '<div class="bloco"><button type="button" class="btn btn-perigo" id="b-excluir-chamado">Excluir chamado</button></div>' : ''}
     </aside>
   </div>`;
 
   $('#b-voltar').onclick = () => ehCliente ? telaCliente() : telaEquipe('fila');
+  if ($('#b-excluir-chamado')) $('#b-excluir-chamado').onclick = async e => {
+    if (!confirmarExclusao(`o chamado ${c.Id}`, 'O chamado, o histórico, as mensagens, os anexos e a pesquisa serão removidos. Esta ação não pode ser desfeita pelo portal.')) return;
+    if (await acao(e.target, () => api('excluirChamado', S.token, c.Id), 'Chamado excluído.')) {
+      pararChat();
+      telaEquipe('fila');
+    }
+  };
   $$('[data-baixar]').forEach(b => b.onclick = () => baixar(c.Id, b.dataset.baixar, b));
   if ($('ul.anexos')) mostrarImagens($('ul.anexos'), c.Id);
   const recarregar = () => telaDetalhe(c.Id);

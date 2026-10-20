@@ -254,6 +254,34 @@ async function main() {
   assert.equal($('#sim-codigo').textContent, 'M01', 'Outside business hours wins.');
   assert.equal($('#sim-previa').textContent, 'Boa tarde! Fora');
   run("S.auth = null;");
+  // Ticket deletion: cancellation and failure keep the detail open; success returns to the queue.
+  ctx.user = admin;
+  let podeExcluir = true, falhaExclusao = false;
+  ctx.mockApi = async (fn, ...args) => {
+    calls.push([fn, ...args]);
+    if (fn === 'detalheChamado') return { chamado: { Id: 'CH-1', Titulo: 'Teste', Status: 'Aberto' }, acoes: { excluir: podeExcluir }, anexos: [] };
+    if (fn === 'excluirChamado' && falhaExclusao) throw new Error('Falha ao excluir');
+    return true;
+  };
+  run("S.usuario = user; api = mockApi; painelN1 = () => {}; painelCliente = () => {}; montarChat = () => {}; telaEquipe = aba => { app.innerHTML = '<div id=fila-retorno>' + aba + '</div>'; };");
+  await run("telaDetalhe('CH-1')");
+  assert($('#b-excluir-chamado'));
+  confirmation = false;
+  const exclusoes = () => calls.filter(c => c[0] === 'excluirChamado');
+  await $('#b-excluir-chamado').onclick({ target: $('#b-excluir-chamado') });
+  assert.equal(exclusoes().length, 0);
+  assert.match(confirmations.at(-1), /Excluir o chamado CH-1/);
+  confirmation = true; falhaExclusao = true;
+  await $('#b-excluir-chamado').onclick({ target: $('#b-excluir-chamado') });
+  assert($('#b-excluir-chamado'));
+  assert.equal($('#b-excluir-chamado').disabled, false);
+  falhaExclusao = false;
+  await $('#b-excluir-chamado').onclick({ target: $('#b-excluir-chamado') });
+  assert.equal($('#fila-retorno').textContent, 'fila');
+  assert.equal(exclusoes().at(-1)[2], 'CH-1');
+  podeExcluir = false;
+  await run("telaDetalhe('CH-1')");
+  assert.equal($('#b-excluir-chamado'), null);
   console.log('OK: navegação, edição/criação em modal, lista oculta, cancelamento, erro de gravação e confirmações de exclusão.');
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });

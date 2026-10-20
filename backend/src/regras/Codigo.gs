@@ -1247,7 +1247,7 @@ function acoes_(p, ch) {
     const atendente = atendenteDe_(ch);
     return {
       transicoes: TRANSICOES_N1[ch.Status] || [], encaminhar: PODE_ENCAMINHAR.indexOf(ch.Status) >= 0,
-      responder: ativo, nota: true, anexar: ativo, classificar: ativo,
+      responder: ativo, nota: true, anexar: ativo, classificar: ativo, excluir: p.perfil === 'Admin',
       assumir: ativo && atendente !== p.login,
       transferir: ativo && (atendente === p.login || (p.perfil === 'Admin' && !!atendente) || !atendente)
     };
@@ -1319,6 +1319,34 @@ function detalheChamado(token, id) {
     chat: { ver: versaoChat_(id), canais: canais, ladoOnline: ladoOnline_(id, p), podeEscreverCliente: falaComCliente_(p, ch) },
     limiteReabertura: ch.Status === STATUS.FECHADO ? limiteReabertura_(ch) : null,
     limiteResposta: [STATUS.AGUARDANDO, STATUS.RESOLVIDO].indexOf(ch.Status) >= 0 ? limiteResposta_(ch) : null
+  });
+}
+
+function excluirChamado(token, id) {
+  const eu = exigirAdmin_(sessao_(token));
+  return comTrava_(function () {
+    const ch = obterChamado_(id);
+    const props = PropertiesService.getScriptProperties();
+    const fila = JSON.parse(props.getProperty('FILA_AVISOS_NOVOS') || '[]');
+    // Limpar o histórico sem deslocar linhas preserva os IDs das mensagens antigas de outros chamados.
+    ['Historico', 'Reacoes', 'Leituras', 'Anexos', 'Pesquisa'].forEach(function (nome) {
+      const sh = ss_().getSheetByName(nome);
+      if (!sh) return;
+      ler_(nome).filter(function (r) { return String(r.Chamado) === String(ch.Id); })
+        .sort(function (a, b) { return b._linha - a._linha; })
+        .forEach(function (r) {
+          if (nome === 'Historico') sh.getRange(r._linha, 1, 1, sh.getLastColumn()).clearContent();
+          else sh.deleteRow(r._linha);
+        });
+    });
+    props.setProperty('FILA_AVISOS_NOVOS', JSON.stringify(fila.filter(function (r) { return String(r.id) !== String(ch.Id); })));
+    if (ch.PastaId) {
+      try { DriveApp.getFolderById(String(ch.PastaId)).setTrashed(true); }
+      catch (e) { console.error('Não foi possível mover a pasta do chamado para a lixeira: ' + e.message); }
+    }
+    aba_('Chamados').deleteRow(ch._linha);
+    auditar_(eu, 'Chamado excluído', JSON.stringify({ id: ch.Id, projeto: ch.Projeto, titulo: ch.Titulo }));
+    return 'Chamado excluído.';
   });
 }
 

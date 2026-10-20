@@ -125,5 +125,39 @@ try {
   const tel = run('abrirChamado', 'bruno', { projetoId: projeto.ProjetoId, categoria, titulo: 'Por telefone', descricao: 'Ligou', bloqueio: 'Não' });
   assert.equal(run('detalheChamado', 'admin', tel).chamado.atendenteNome, 'Bruno');
   assert.equal(ve('ana', tel), false);
+
+  // Only Admin can delete, including closed tickets; all linked records are removed.
+  assert.equal(run('detalheChamado', 'admin', id).acoes.excluir, true);
+  assert.equal(Boolean(run('detalheChamado', 'bruno', tel).acoes.excluir), false);
+  for (const token of ['ana', 'bruno', 'sofia', 'cliente']) {
+    assert.throws(() => run('excluirChamado', token, id), /Somente o administrador/);
+  }
+  assert.throws(() => run('excluirChamado', 'invalido', id), /SESSAO_EXPIRADA/);
+  const tabelas = ['Historico', 'Reacoes', 'Leituras', 'Anexos', 'Pesquisa'];
+  for (const nome of tabelas) {
+    run('inserir_', nome, { Chamado: id });
+    run('inserir_', nome, { Chamado: id });
+  }
+  // Older messages use their row number as ID: deleting another ticket must preserve it.
+  run('inserir_', 'Historico', { Chamado: tel, Tipo: 'MENSAGEM', Texto: 'Mensagem antiga', Visivel: 'SIM' });
+  const antes = run('detalheChamado', 'admin', tel).historico;
+  const svc = gas.makeServices(require('node:vm').createContext({}));
+  svc.PropertiesService.getScriptProperties().setProperty('FILA_AVISOS_NOVOS', JSON.stringify([{ id }, { id: tel }]));
+  svc._salvar();
+  const pasta = run('obterChamado_', id).PastaId;
+  assert(pasta, 'The deleted ticket has attachments in its own folder.');
+  run('atualizar_', 'Chamados', run('obterChamado_', id)._linha, { Status: 'Fechado' });
+  assert.equal(run('excluirChamado', 'admin', id), 'Chamado excluído.');
+  assert.throws(() => run('detalheChamado', 'admin', id), /não encontrado/);
+  assert.throws(() => run('excluirChamado', 'admin', id), /não encontrado/);
+  assert(!fila('admin').includes(id));
+  assert(!run('meusChamados', 'cliente').some(c => c.Id === id));
+  for (const nome of tabelas) assert(!run('ler_', nome).some(r => r.Chamado === id), nome);
+  assert.deepEqual(run('detalheChamado', 'admin', tel).historico, antes);
+  assert(run('ler_', 'Auditoria').some(r => r.Acao === 'Chamado excluído' && r.Login === 'admin' && JSON.parse(r.Detalhe).id === id));
+  const depois = gas.makeServices(require('node:vm').createContext({}));
+  assert.deepEqual(JSON.parse(depois.PropertiesService.getScriptProperties().getProperty('FILA_AVISOS_NOVOS')), [{ id: tel }]);
+  assert.throws(() => depois.DriveApp.getFolderById(pasta), /não encontrado/);
+  assert.equal(run('excluirChamado', 'admin', tel), 'Chamado excluído.', 'An active ticket can also be deleted.');
 } finally { console.log = log; }
 log('OK: atendente ao agir, só o atendente e o Admin veem, encaminhar mantém o atendente, transferir tira o acesso, avisos ao atendente e chamado por telefone.');
