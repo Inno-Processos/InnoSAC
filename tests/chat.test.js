@@ -61,5 +61,12 @@ try {
   assert.equal(fechado.acoes.reabrir, true, 'It can still be reopened.');
   assert(fechado.historico.some(h => /Cliente fechou o chamado\. Motivo: Resolvi sozinho/.test(h.Texto)));
   assert.throws(() => run('fecharChamado', 'cliente', id), /encerrado/);
+
+  // Satisfaction answers show up in the Pesquisas tab, for the team only
+  assert.deepEqual(run('listarPesquisas', 'admin'), []);
+  run('responderPesquisa', { token: 'cliente' }, id, 2, 'Não', 'Demorou demais');
+  const pesquisas = run('listarPesquisas', 'admin');
+  assert.deepEqual(pesquisas.map(r => [r.chamado, r.nota, r.resolvido, r.comentario, r.titulo]), [[id, 2, 'Não', 'Demorou demais', 'Teste']]);
+  assert.throws(() => run('listarPesquisas', 'cliente'), /./, 'Clients cannot list survey answers.');
 } finally { console.log = log; }
 log('OK: respostas a mensagens, reações (uma por pessoa, trocar e tirar), notas internas protegidas e fechamento pelo cliente.');

@@ -47,7 +47,7 @@ function restaurarTela() {
     return false;
   }
   const permitidas = ['fila', 'ajuda'];
-  if (S.usuario.n1) permitidas.push('telefone', 'relatorios');
+  if (S.usuario.n1) permitidas.push('telefone', 'relatorios', 'pesquisas');
   if (S.usuario.admin) permitidas.push('projetos', 'equipe', 'config');
   if (!permitidas.includes(rota.tela)) return false;
   const sub = ['situacao', 'geral', 'automaticas', 'categorias', 'perfis', 'modulos', 'manuais', 'feriados'].includes(rota.valor) ? rota.valor : undefined;
@@ -248,6 +248,7 @@ function iconeInterface(nome) {
     fila: '<rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8 9h8M8 13h8M8 17h4"/>',
     telefone: '<path d="m7 3 3 5-3 3a14 14 0 0 0 6 6l3-3 5 3c-1 5-5 5-9 3A21 21 0 0 1 4 12C2 8 2 4 7 3Z"/>',
     relatorios: '<path d="M4 4v16h16M8 15v-4M13 15V7M18 15v-6"/>',
+    pesquisas: '<path d="m12 3.5 2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.3-4.1 5.9-.9Z"/>',
     projetos: '<path d="M3 7V5a2 2 0 0 1 2-2h5l3 3h6a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/>',
     equipe: '<circle cx="9" cy="8" r="3"/><path d="M3 20v-2a6 6 0 0 1 12 0v2M16 5a3 3 0 0 1 0 6M18 15a5 5 0 0 1 3 5"/>',
     config: '<path d="M4 6h16M4 12h16M4 18h16"/><circle cx="8" cy="6" r="2"/><circle cx="16" cy="12" r="2"/><circle cx="10" cy="18" r="2"/>',
@@ -308,11 +309,11 @@ function topo() {
   };
   if (u.tipo === 'equipe') {
     const itens = [['fila', 'Fila de chamados']];
-    if (u.n1) itens.push(['telefone', 'Abrir por telefone'], ['relatorios', 'Relatórios']);
+    if (u.n1) itens.push(['telefone', 'Abrir por telefone'], ['relatorios', 'Relatórios'], ['pesquisas', 'Pesquisas de satisfação']);
     if (u.admin) itens.push(['projetos', 'Projetos'], ['equipe', 'Equipe'], ['config', 'Configurações']);
     itens.push(['ajuda', 'Ajuda e manuais']);
     const grupos = [
-      ['Atendimento', itens.filter(([k]) => ['fila', 'telefone', 'relatorios'].includes(k))],
+      ['Atendimento', itens.filter(([k]) => ['fila', 'telefone', 'relatorios', 'pesquisas'].includes(k))],
       ['Administração', itens.filter(([k]) => ['projetos', 'equipe', 'config'].includes(k))],
       ['Ajuda', itens.filter(([k]) => k === 'ajuda')]
     ];
@@ -807,7 +808,7 @@ async function telaDetalhe(id) {
       <div id="painel"></div>
       <section class="bloco chat" id="chat"></section>
       <section class="bloco"><h2>Anexos</h2>
-        ${d.anexos.length ? `<ul class="anexos">${d.anexos.map(x => `<li><span><b>${esc(x.Nome)}</b> <span class="suave pequeno">${tamanho(x.Tamanho)}, ${esc(x.Autor)}, ${fmtDH(x.DataHora)}${x.interno ? ', interno' : ''}</span></span>
+        ${d.anexos.length ? `<ul class="anexos">${d.anexos.map(x => `<li>${ehImagem(x.Nome) ? miniatura(x.ArquivoId, x.Nome) : ''}<span><b>${esc(x.Nome)}</b> <span class="suave pequeno">${tamanho(x.Tamanho)}, ${esc(x.Autor)}, ${fmtDH(x.DataHora)}${x.interno ? ', interno' : ''}</span></span>
           <button class="btn" data-baixar="${esc(x.ArquivoId)}">Baixar</button></li>`).join('')}</ul>` : '<p class="suave">Nenhum anexo.</p>'}
       </section>
     </div>
@@ -837,6 +838,7 @@ async function telaDetalhe(id) {
 
   $('#b-voltar').onclick = () => ehCliente ? telaCliente() : telaEquipe('fila');
   $$('[data-baixar]').forEach(b => b.onclick = () => baixar(c.Id, b.dataset.baixar, b));
+  if ($('ul.anexos')) mostrarImagens($('ul.anexos'), c.Id);
   const recarregar = () => telaDetalhe(c.Id);
 
   if (ehCliente) painelCliente(c, d, a, recarregar);
@@ -1080,6 +1082,7 @@ function desenharFeed(rolar) {
   tocando.forEach(a => { const novo = $(`audio[data-audio="${CSS.escape(a.dataset.audio)}"]`, feed); if (novo) novo.replaceWith(a); });
   $$('[data-arq]', feed).forEach(b => b.onclick = () => baixar(ch.id, b.dataset.arq, b));
   $$('[data-ouvir]', feed).forEach(b => b.onclick = () => ouvirAudio(ch.id, b.dataset.ouvir, b));
+  mostrarImagens(feed, ch.id);
   ligarAcoesChat(feed);
   if (rolar || perto) feed.scrollTop = feed.scrollHeight;
 }
@@ -1096,21 +1099,60 @@ const resumoChat = h => h.Tipo === 'ANEXO' ? (ehAudio(h.Texto) ? 'Áudio' : 'Arq
 // Gravações do próprio chat se chamam audio-....webm; outros .webm podem ser vídeo
 const ehAudio = nome => /\.(ogg|oga|opus|mp3|m4a|wav|aac)$/i.test(nome) || /^audio-.*\.webm$/i.test(nome);
 
-// O áudio vem do Drive em base64: baixa só quando alguém pede para ouvir e guarda para os redesenhos do feed
+const ehImagem = nome => /\.(png|jpe?g|gif|webp|bmp)$/i.test(nome);
+
+// Anexos vêm do Drive em base64: cada um é baixado uma vez e guardado como URL local para os redesenhos da tela
+S.blobs = {};
+const baixandoBlob = {};
+function urlDoAnexo(id, ref) {
+  if (S.blobs[ref]) return Promise.resolve(S.blobs[ref]);
+  if (!baixandoBlob[ref]) baixandoBlob[ref] = api('baixarAnexo', S.token, id, ref).then(r => {
+    const bin = atob(r.b64);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return (S.blobs[ref] = URL.createObjectURL(new Blob([bytes], { type: r.tipo })));
+  }).finally(() => { delete baixandoBlob[ref]; });
+  return baixandoBlob[ref];
+}
+
+// O áudio só é baixado quando alguém pede para ouvir
 async function ouvirAudio(id, ref, btn) {
-  const r = await acao(btn, () => api('baixarAnexo', S.token, id, ref));
-  if (!r) return;
-  const bin = atob(r.b64);
-  const bytes = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-  S.audios = S.audios || {};
-  S.audios[ref] = URL.createObjectURL(new Blob([bytes], { type: r.tipo }));
-  if (!btn.isConnected) return;
+  const url = await acao(btn, () => urlDoAnexo(id, ref));
+  if (!url || !btn.isConnected) return;
   const audio = document.createElement('audio');
-  audio.controls = true; audio.src = S.audios[ref]; audio.dataset.audio = ref;
+  audio.controls = true; audio.src = url; audio.dataset.audio = ref;
   btn.replaceWith(audio);
   audio.play().catch(() => { });
 }
+
+// Imagens aparecem direto como miniatura; um clique abre em tamanho grande
+function mostrarImagens(raiz, id) {
+  $$('img[data-img]', raiz).forEach(img => {
+    const ref = img.dataset.img;
+    if (S.blobs[ref]) img.src = S.blobs[ref];
+    else urlDoAnexo(id, ref).then(url => { img.src = url; }).catch(e => { if (e.message !== 'SESSAO_EXPIRADA') img.closest('.miniatura').classList.add('falhou'); });
+  });
+  $$('[data-ver-img]', raiz).forEach(b => b.onclick = () => verImagem(id, b.dataset.verImg, b.dataset.nome));
+}
+
+async function verImagem(id, ref, nome) {
+  let url;
+  try { url = await urlDoAnexo(id, ref); } catch (e) { if (e.message !== 'SESSAO_EXPIRADA') aviso(e.message, 'erro'); return; }
+  const d = document.createElement('dialog');
+  d.className = 'visor-imagem';
+  d.setAttribute('aria-label', nome);
+  d.innerHTML = `<div class="visor-topo"><span>${esc(nome)}</span><button type="button" class="btn" data-visor-baixar>Baixar</button><button type="button" class="btn" data-visor-fechar>Fechar</button></div><img alt="${esc(nome)}">`;
+  $('img', d).src = url;
+  $('[data-visor-fechar]', d).onclick = () => d.close();
+  $('[data-visor-baixar]', d).onclick = e => baixar(id, ref, e.currentTarget);
+  d.onclick = e => { if (e.target === d) d.close(); };
+  d.addEventListener('close', () => d.remove());
+  document.body.appendChild(d);
+  d.showModal();
+}
+
+const miniatura = (ref, nome) => `<button type="button" class="miniatura" data-ver-img="${esc(ref)}" data-nome="${esc(nome)}" aria-label="Ver imagem ${esc(nome)}" title="Ver imagem">
+  <img data-img="${esc(ref)}" alt="${esc(nome)}"${S.blobs[ref] ? ` src="${S.blobs[ref]}"` : ''}></button>`;
 
 // Mensagem de voz: grava com o microfone e envia como anexo (precisa de HTTPS ou localhost)
 const LIMITE_GRAVACAO = 5 * 60000;
@@ -1184,9 +1226,11 @@ function bolhaChat(h, continua) {
   if (h.Tipo === 'AVISO' || h.Tipo === 'PESQUISA') return `<div class="evento">${esc(h.Texto)} <span>${hora}</span></div>`;
   const autor = h.meu || continua ? '' : esc(nomeAutorChat(h));
   const corpo = h.Tipo === 'ANEXO' && h.Ref && ehAudio(h.Texto)
-    ? `<div class="arquivo audio">${S.audios && S.audios[h.Ref]
-      ? `<audio controls src="${S.audios[h.Ref]}" data-audio="${esc(h.Ref)}"></audio>`
+    ? `<div class="arquivo audio">${S.blobs[h.Ref]
+      ? `<audio controls src="${S.blobs[h.Ref]}" data-audio="${esc(h.Ref)}"></audio>`
       : `<button data-ouvir="${esc(h.Ref)}">▶ Ouvir áudio</button>`}<button data-arq="${esc(h.Ref)}">Baixar</button></div>`
+    : h.Tipo === 'ANEXO' && h.Ref && ehImagem(h.Texto)
+    ? `<div class="arquivo imagem">${miniatura(h.Ref, h.Texto)}<div class="arquivo-linha"><span>${esc(h.Texto)}</span><button data-arq="${esc(h.Ref)}">Baixar</button></div></div>`
     : h.Tipo === 'ANEXO'
     ? `<div class="arquivo"><span>Arquivo: <b>${esc(h.Texto)}</b></span>${h.Ref ? `<button data-arq="${esc(h.Ref)}">Baixar</button>` : ''}</div>`
     : `<div class="corpo">${esc(h.Texto)}</div>`;
@@ -1426,7 +1470,68 @@ function telaEquipe(aba, sub) {
   if (aba === 'ajuda') return telaAjuda();
   if (aba === 'equipe') return telaEquipeAdmin();
   if (aba === 'relatorios') return telaRelatorios();
+  if (aba === 'pesquisas') return telaPesquisas();
   return telaFila();
+}
+
+// ───────── Pesquisas de satisfação respondidas (N1 e Admin) ─────────
+async function telaPesquisas() {
+  const nav = novaTela();
+  app.innerHTML = '<div class="carregando">Carregando pesquisas…</div>';
+  let lista;
+  try { lista = await api('listarPesquisas', S.token); } catch (e) { if (nav === S.nav && e.message !== 'SESSAO_EXPIRADA') app.innerHTML = `<div class="vazio">${esc(e.message)}</div>`; return; }
+  if (nav !== S.nav) return;
+  const f = S.filtroPesquisas = S.filtroPesquisas || {};
+  const projetos = [...new Set(lista.map(r => r.projeto).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  app.innerHTML = `
+    <div class="cabeca-lista"><div><h1>Pesquisas de satisfação</h1>
+      <p class="suave" style="margin:0">Respostas dos clientes depois que o chamado é fechado. Clique no número para abrir o chamado.</p></div>
+      <button class="btn" id="b-atualizar">Atualizar</button></div>
+    <div class="contadores" id="pq-kpis"></div>
+    <div class="filtros">
+      <input type="search" id="pq-q" placeholder="Buscar por número, projeto, cliente ou comentário…" aria-label="Buscar">
+      <select id="pq-nota" aria-label="Nota"><option value="">Todas as notas</option>${[5, 4, 3, 2, 1].map(n => `<option value="${n}">Nota ${n}</option>`).join('')}<option value="baixas">Notas 1 e 2</option></select>
+      <select id="pq-res" aria-label="Resolvido"><option value="">Resolvido ou não</option><option>Sim</option><option>Não</option></select>
+      <select id="pq-proj" aria-label="Projeto"><option value="">Todos os projetos</option>${projetos.map(p => `<option>${esc(p)}</option>`).join('')}</select>
+      <label class="pequeno" style="display:flex;align-items:center;gap:6px"><input type="checkbox" id="pq-com"> Só com comentário</label>
+      <input type="date" id="pq-de" aria-label="Respondidas desde"><input type="date" id="pq-ate" aria-label="Respondidas até">
+    </div>
+    <div id="pq-lista"></div>`;
+  const campos = { busca: '#pq-q', nota: '#pq-nota', resolvido: '#pq-res', projeto: '#pq-proj', de: '#pq-de', ate: '#pq-ate' };
+  Object.entries(campos).forEach(([k, s]) => { $(s).value = f[k] || ''; });
+  $('#pq-com').checked = !!f.comentario;
+  $('#b-atualizar').onclick = telaPesquisas;
+  const dia = d => new Date(d).toLocaleDateString('sv-SE', { timeZone: TZ });
+  const estrelas = n => `<span class="estrelas" aria-label="Nota ${n} de 5">${'★'.repeat(n)}<span>${'★'.repeat(5 - n)}</span></span>`;
+  const render = () => {
+    Object.entries(campos).forEach(([k, s]) => { f[k] = $(s).value; });
+    f.comentario = $('#pq-com').checked;
+    const q = f.busca.toLowerCase();
+    const itens = lista.filter(r =>
+      (!f.nota || (f.nota === 'baixas' ? r.nota <= 2 : r.nota === Number(f.nota))) &&
+      (!f.resolvido || r.resolvido === f.resolvido) && (!f.projeto || r.projeto === f.projeto) &&
+      (!f.comentario || r.comentario.trim()) && (!f.de || dia(r.data) >= f.de) && (!f.ate || dia(r.data) <= f.ate) &&
+      (!q || [r.chamado, r.projeto, r.cliente, r.titulo, r.comentario, r.atendente].join(' ').toLowerCase().includes(q)));
+    const media = itens.length ? itens.reduce((s, r) => s + r.nota, 0) / itens.length : null;
+    $('#pq-kpis').innerHTML = `
+      <div><b>${itens.length}</b>respostas</div>
+      <div><b>${media === null ? '–' : media.toFixed(1).replace('.', ',')}</b>nota média (1 a 5)</div>
+      <div><b>${itens.length ? Math.round(itens.filter(r => r.resolvido === 'Sim').length * 100 / itens.length) + '%' : '–'}</b>disseram que foi resolvido</div>
+      <div class="${itens.some(r => r.nota <= 2) ? 'alerta' : ''}"><b>${itens.filter(r => r.nota <= 2).length}</b>notas 1 e 2</div>`;
+    $('#pq-lista').innerHTML = itens.length ? `<div class="rolagem"><table class="tabela-pesquisas"><thead><tr>
+        <th>Chamado</th><th>Respondida em</th><th>Projeto e cliente</th><th>Atendente</th><th>Nota</th><th>Resolvido</th><th>Comentário</th></tr></thead><tbody>
+      ${itens.map(r => `<tr class="${r.nota <= 2 ? 'nota-baixa' : ''}">
+        <td><button type="button" class="btn-link protocolo" data-abrir="${esc(r.chamado)}" translate="no">${esc(r.chamado)}</button><div class="suave pequeno">${esc(r.titulo)}</div></td>
+        <td>${fmtDH(r.data)}</td>
+        <td>${esc(r.projeto)}${r.cliente ? `<div class="suave pequeno">${esc(r.cliente)}</div>` : ''}</td>
+        <td>${esc(r.atendente || '–')}${r.setor ? `<div class="suave pequeno">Setor: ${esc(r.setor)}</div>` : ''}</td>
+        <td>${estrelas(r.nota)}</td><td>${r.resolvido}</td>
+        <td class="comentario">${r.comentario ? esc(r.comentario) : '<span class="suave">–</span>'}</td></tr>`).join('')}
+      </tbody></table></div>` : `<div class="vazio">${lista.length ? 'Nenhuma resposta com esses filtros.' : 'Nenhuma pesquisa respondida ainda.'}</div>`;
+    $$('#pq-lista [data-abrir]').forEach(b => b.onclick = () => telaDetalhe(b.dataset.abrir));
+  };
+  [...Object.values(campos), '#pq-com'].forEach(s => { $(s).oninput = render; $(s).onchange = render; });
+  render();
 }
 
 async function telaFila() {

@@ -100,7 +100,7 @@ const ABAS = {
     'UltimaMudancaStatus', 'Prazo', 'AvisoAtrasoEnviado', 'ResolvidoEm', 'FechadoEm', 'FechadoPor',
     'PastaId', 'Reaberturas', 'MotivoCancelamento',
     'ClienteLogin', 'Atendente'], // ClienteLogin: quem abriu (cliente da conta Innomaker); Atendente: login do N1 que assumiu
-  Historico: ['Chamado', 'DataHora', 'Autor', 'Perfil', 'Tipo', 'Texto', 'Visivel', 'Ref', 'Id', 'RespostaA'], // RespostaA: Id da mensagem citada
+  Historico: ['Chamado', 'DataHora', 'Autor', 'Perfil', 'Tipo', 'Texto', 'Visivel', 'Ref', 'Id', 'RespostaA', 'Login'], // RespostaA: Id da mensagem citada; Login: quem escreveu
   Reacoes: ['Chamado', 'Mensagem', 'Login', 'Nome', 'Emoji', 'DataHora'], // uma reação por pessoa em cada mensagem
   Leituras: ['Chave', 'Chamado', 'Email', 'Canal', 'LidoEm'], // Email guarda o login de quem leu
   Anexos: ['Chamado', 'DataHora', 'Autor', 'Nome', 'ArquivoId', 'Tamanho', 'Visivel'],
@@ -1166,7 +1166,7 @@ function registrar_(chamado, p, tipo, texto, visivel, ref, respostaA) {
   inserir_('Historico', {
     Chamado: chamado, DataHora: new Date(), Autor: p.nome, Perfil: p.perfil,
     Tipo: tipo, Texto: texto, Visivel: visivel ? 'SIM' : 'NAO', Ref: ref || '',
-    Id: Utilities.getUuid().replace(/-/g, '').slice(0, 12), RespostaA: respostaA ? limpa_(respostaA, 40) : ''
+    Id: Utilities.getUuid().replace(/-/g, '').slice(0, 12), RespostaA: respostaA ? limpa_(respostaA, 40) : '', Login: p.login || ''
   });
   marcarVersaoChat_(chamado);
 }
@@ -1418,16 +1418,35 @@ function responder(token, id, texto, respostaA) {
 
   if (p.tipo === 'cliente') {
     if (r.mudou) emailStatus_(r.ch);
-    if (!online_(r.ch.Id, 'n1') && podeAvisar_(r.ch.Id, 'n1')) {
-      notificarN1_('Nova mensagem do cliente — ' + r.ch.Id, '<p>' + esc_(r.ch.Projeto) + ' escreveu no chat:</p>' + citacao_(texto), r.ch.Id);
-    }
-    if (r.ch.Status === STATUS.ENCAMINHADO && r.ch.Setor && !online_(r.ch.Id, 'setor') && podeAvisar_(r.ch.Id, 'setor-cliente')) {
-      const emails = emailsEquipe_(r.ch.Setor);
-      if (emails.length) enviarEmail_(emails.join(','), '[' + r.ch.Id + '] Nova mensagem do cliente',
-        '<p>' + esc_(r.ch.Projeto) + ' escreveu no chat do chamado encaminhado ao seu setor:</p>' + citacao_(texto) + botao_('Abrir chamado', linkChamado_(r.ch.Id)));
-    }
+    avisarEquipeResposta_(r.ch, citacao_(texto));
   } else avisarClienteResposta_(r.ch, citacao_(texto));
   return true;
+}
+
+// Quem da equipe está conversando com o cliente: o último que escreveu para ele e ainda tem acesso ao chamado
+function quemResponde_(ch) {
+  const equipe = ler_('Equipe');
+  const ultimas = ler_('Historico').filter(function (h) {
+    return String(h.Chamado) === String(ch.Id) && (h.Tipo === 'MENSAGEM' || h.Tipo === 'ANEXO') &&
+      String(h.Visivel).toUpperCase() === 'SIM' && h.Perfil !== 'Cliente' && h.Perfil !== 'Sistema';
+  }).reverse();
+  for (let i = 0; i < ultimas.length; i++) {
+    const h = ultimas[i];
+    // Linhas antigas não guardavam o login: acha a pessoa pelo nome e perfil
+    const m = h.Login ? null : equipe.filter(function (x) { return String(x.Nome) === String(h.Autor) && String(x.Perfil).trim().toLowerCase() === String(h.Perfil).trim().toLowerCase(); })[0];
+    const p = identificar_(h.Login || (m && m.Login));
+    if (p && p.tipo === 'equipe' && p.email && podeVer_(p, ch)) return p;
+  }
+  return null;
+}
+
+// Toda resposta do cliente (mensagem ou arquivo) vai por e-mail na hora para quem está respondendo;
+// se ninguém da equipe escreveu ainda, vale o aviso de sempre (atendente ou N1)
+function avisarEquipeResposta_(ch, conteudo) {
+  const html = '<p>' + esc_(ch.Projeto) + ' respondeu no chat do chamado <b>' + ch.Id + '</b> — ' + esc_(ch.Titulo) + ':</p>' + conteudo;
+  const quem = quemResponde_(ch);
+  if (quem) enviarEmail_(quem.email, '[' + ch.Id + '] Nova mensagem do cliente', html + botao_('Abrir chamado', linkChamado_(ch.Id)));
+  else notificarN1_('Nova mensagem do cliente — ' + ch.Id, html, ch.Id);
 }
 
 // Toda resposta da equipe ao cliente (mensagem ou arquivo visível) vai por e-mail na hora
@@ -1849,9 +1868,11 @@ function anexar(token, id, arquivo, interno) {
     });
     registrar_(ch.Id, p, 'ANEXO', nome, !ehInterno, f.getId());
     tocar_(ch);
-    return { ch: ch, avisar: p.tipo === 'equipe' && !ehInterno };
+    return { ch: ch, visivel: !ehInterno };
   });
-  if (r.avisar) avisarClienteResposta_(r.ch, '<p>Arquivo enviado: <b>' + esc_(nome) + '</b></p>');
+  const arquivoHtml = '<p>Arquivo enviado: <b>' + esc_(nome) + '</b></p>';
+  if (p.tipo === 'cliente') avisarEquipeResposta_(r.ch, arquivoHtml);
+  else if (r.visivel) avisarClienteResposta_(r.ch, arquivoHtml);
   return true;
 }
 
@@ -1895,6 +1916,24 @@ function responderPesquisa(cred, id, nota, resolvido, comentario) {
     registrar_(atual.Id, SISTEMA, 'PESQUISA', 'Pesquisa de satisfação respondida', true);
   });
   return true;
+}
+
+/** Aba Pesquisas (N1 e Admin): todas as respostas, das mais recentes para as mais antigas, com os dados do chamado. */
+function listarPesquisas(token) {
+  exigirN1_(sessao_(token));
+  const chamados = {};
+  ler_('Chamados').forEach(function (c) { chamados[String(c.Id)] = c; });
+  return pub_(ler_('Pesquisa')
+    .filter(function (r) { return r.Chamado && chamados[String(r.Chamado)]; })
+    .sort(function (a, b) { return b.DataHora - a.DataHora; })
+    .map(function (r) {
+      const c = chamados[String(r.Chamado)];
+      return {
+        chamado: String(c.Id), titulo: String(c.Titulo || ''), projeto: String(c.Projeto || ''), cliente: String(c.Usuario || ''),
+        atendente: c.Atendente ? nomeDaEquipe_(c.Atendente) : '', setor: String(c.Setor || ''),
+        data: r.DataHora, nota: Number(r.Nota), resolvido: r.Resolvido === 'Não' ? 'Não' : 'Sim', comentario: String(r.Comentario || '')
+      };
+    }));
 }
 
 // ───────────────────────── Meu cadastro (o cliente mantém nome e e-mail) ─────────────────────────

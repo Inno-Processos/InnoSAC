@@ -176,6 +176,26 @@ body.sac-interno .bolha.abertura .autor { color: var(--suave); font-weight: 600;
 body.sac-interno .bolha .arquivo { gap: 12px; padding: 4px 0; }
 body.sac-interno .bolha .arquivo button { border-radius: 999px; padding: 4px 12px; font-size: 12px; }
 body.sac-interno .bolha .arquivo.audio { flex-wrap: wrap; }
+/* Imagens: miniatura com tamanho fixo (o feed não pula quando ela carrega); clique abre o visor */
+body.sac-interno .bolha .arquivo.imagem { flex-direction: column; align-items: flex-start; gap: 6px; }
+body.sac-interno .bolha .arquivo-linha { display: flex; align-items: center; gap: 10px; max-width: 240px; font-size: 12px; }
+body.sac-interno .bolha .arquivo-linha span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+body.sac-interno .miniatura {
+  display: block; flex: none; width: 240px; max-width: 100%; height: 170px; padding: 0; overflow: hidden; cursor: zoom-in;
+  border: 1px solid var(--linha); border-radius: 10px; background: var(--elevado);
+}
+body.sac-interno .bolha .arquivo .miniatura { border-radius: 10px; padding: 0; }
+body.sac-interno .miniatura img { display: block; width: 100%; height: 100%; object-fit: cover; }
+body.sac-interno .miniatura img:not([src]) { visibility: hidden; }
+body.sac-interno .miniatura.falhou { cursor: default; }
+body.sac-interno .miniatura.falhou::after { content: "Imagem indisponível"; display: grid; place-items: center; height: 100%; font-size: 12px; color: var(--suave); }
+body.sac-interno .anexos .miniatura { width: 64px; height: 48px; border-radius: 6px; }
+body.sac-interno .anexos li > span { flex: 1; min-width: 0; }
+.visor-imagem { max-width: min(96vw, 1200px); max-height: 94vh; padding: 0; border: 0; border-radius: 12px; background: var(--superficie, #fff); color: var(--texto, #111); overflow: hidden; }
+.visor-imagem::backdrop { background: #000000b3; }
+.visor-imagem .visor-topo { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--linha, #ddd); }
+.visor-imagem .visor-topo span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; font-size: 14px; }
+.visor-imagem img { display: block; max-width: min(96vw, 1200px); max-height: calc(94vh - 58px); margin: 0 auto; object-fit: contain; }
 body.sac-interno .bolha .arquivo.audio audio { width: min(260px, 100%); height: 36px; }
 body.sac-interno .chat-feed.interno .bolha { background: var(--nota); color: var(--texto); }
 body.sac-interno .chat-feed.interno .bolha.meu { background: var(--superficie); }
@@ -223,6 +243,12 @@ body.sac-interno .btn-enviar:hover { background: var(--tinta); }
 body.sac-interno .btn-enviar:disabled { opacity: .55; }
 body.sac-interno .btn-enviar .ico { width: 20px; height: 20px; }
 @media (prefers-color-scheme: dark) { body.sac-interno .btn-enviar { color: #0c1a0b; } }
+/* Pesquisas de satisfação */
+body.sac-interno .tabela-pesquisas td { vertical-align: top; }
+body.sac-interno .tabela-pesquisas .comentario { min-width: 220px; max-width: 420px; white-space: pre-line; }
+body.sac-interno .tabela-pesquisas tr.nota-baixa td:first-child { box-shadow: inset 3px 0 0 #d93025; }
+body.sac-interno .estrelas { color: #e0a800; letter-spacing: 1px; white-space: nowrap; }
+body.sac-interno .estrelas span { color: var(--linha); }
 body.sac-interno .chat-compor.gravando { align-items: center; }
 body.sac-interno .chat-compor.gravando .campo-msg { align-items: center; gap: 10px; min-height: 44px; padding: 0 16px; }
 body.sac-interno .ponto-gravando { width: 10px; height: 10px; border-radius: 50%; background: #d93025; animation: piscar-gravando 1s ease-in-out infinite; }

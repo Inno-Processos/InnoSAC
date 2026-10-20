@@ -92,6 +92,12 @@ try {
   run('devolverAoN1', 'sofia', id, 'Corrigido o CFOP.');
   assert.equal(ve('sofia', id), false, 'Back with the N1, the sector no longer sees it.');
   assert.throws(() => run('enviarChat', 'sofia', id, 'cliente', 'Mais uma coisa'), /não tem acesso/, 'Back with the N1, the sector can no longer write.');
+  // The client reply goes to whoever is answering and still has the ticket (Sofia lost it, so Ana), every time
+  enviados = [];
+  run('enviarChat', 'cliente', id, 'cliente', 'Obrigada!');
+  run('anexar', 'cliente', id, { nome: 'nota.png', tipo: 'image/png', b64: Buffer.from('x').toString('base64') }, false);
+  const paraEquipe = enviados.filter(m => /Nova mensagem do cliente/.test(m.subject)).map(m => m.to);
+  assert.deepEqual(paraEquipe, ['ana@innomaker.com.br', 'ana@innomaker.com.br'], 'Not the admin, not the whole N1: ' + paraEquipe);
   assert.equal(ve('ana', id), true);
 
   // Transferring to another N1: Ana loses it, Bruno gets it and an e-mail
