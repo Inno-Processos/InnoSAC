@@ -262,6 +262,7 @@ function iconeInterface(nome) {
     relogio: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
     clipe: '<path d="m20 11.5-8.2 8.2a5.5 5.5 0 0 1-7.8-7.8L12.6 3.3a3.7 3.7 0 0 1 5.2 5.2l-8.5 8.5a1.8 1.8 0 0 1-2.6-2.6l7.9-7.9"/>',
     enviar: '<path d="M4 12 20 4l-4 16-4.5-6.5L4 12Z"/><path d="m11.5 13.5 4-4"/>',
+    microfone: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>',
     modulos: '<rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/>'
   };
   return `<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${desenhos[nome] || desenhos.fila}</svg>`;
@@ -681,7 +682,7 @@ function linhaChamado(c, equipe, mostrarProjeto) {
     <span class="tit">${equipe || mostrarProjeto ? `<span class="suave">${esc(c.Projeto)}:</span> ` : ''}${esc(c.Titulo)}</span>
     <span>${c.naoLidas ? `<span class="chip chip-nova">${c.naoLidas} ${c.naoLidas === 1 ? 'nova' : 'novas'}</span>` : ''}${c.Prioridade === 'Bloqueio' ? '<span class="chip chip-bloqueio">Bloqueio</span> ' : ''}${chipStatus(c.Status)}</span>
     <span class="meta"><span>${c.Modulo ? esc(c.Modulo) + ', ' : ''}${esc(c.Categoria)}</span><span>Aberto ${fmtDH(c.Abertura)}</span>
-      <span>Atualizado ${fmtDH(c.UltimaAtualizacao)}</span>${equipe && c.Setor ? `<span>Setor ${esc(c.Setor)}</span>` : ''}${prazo}
+      <span>Atualizado ${fmtDH(c.UltimaAtualizacao)}</span>${equipe && c.Setor ? `<span>Setor ${esc(c.Setor)}</span>` : ''}${equipe && !FINAIS.includes(c.Status) ? (c.Atendente ? `<span>Atendente ${esc(c.Atendente)}</span>` : '<span class="sem-atendente">Sem atendente</span>') : ''}${prazo}
       ${c.pesquisaPendente ? '<span class="atrasado">Pesquisa pendente</span>' : ''}</span>
   </button>`;
 }
@@ -825,7 +826,9 @@ async function telaDetalhe(id) {
           ${Number(c.Reaberturas) ? `<dt>Reaberturas</dt><dd>${esc(c.Reaberturas)}</dd>` : ''}
           ${c.MotivoCancelamento ? `<dt>Motivo</dt><dd>${esc(c.MotivoCancelamento)}</dd>` : ''}
         </dl>
-        ${ehN1 && c.contato ? `<hr style="border:0;border-top:1px solid var(--linha);margin:14px 0"><dl class="dados">
+        ${ehN1 && sso() ? `<hr style="border:0;border-top:1px solid var(--linha);margin:14px 0"><dl class="dados">
+          <dt>Cliente</dt><dd>${esc(c.Usuario || '—')}</dd><dt>E-mail</dt><dd>${esc(c.Email || 'sem e-mail: não recebe avisos')}</dd></dl>`
+        : ehN1 && c.contato ? `<hr style="border:0;border-top:1px solid var(--linha);margin:14px 0"><dl class="dados">
           <dt>Login</dt><dd>${esc(c.contato.login)}</dd><dt>Responsável</dt><dd>${esc(c.contato.usuario || '—')}</dd><dt>E-mail</dt><dd>${esc(c.contato.email || 'sem e-mail: não recebe avisos')}</dd>
           ${c.contato.telefone ? `<dt>Telefone</dt><dd>${esc(c.contato.telefone)}</dd>` : ''}</dl>` : ''}
       </div>
@@ -919,7 +922,23 @@ function painelN1(c, a, recarregar) {
       ${c.Setor ? '' : `<div class="ajuda">Sugestão pela categoria: ${esc(setorSugerido(c.Categoria))}.</div>`}</div>
     <div class="campo"><label for="e-nota">O que o setor precisa fazer</label><textarea id="e-nota"></textarea><div class="ajuda">Nota interna; o cliente não vê.</div></div>
     <button class="btn" id="b-encaminhar">Encaminhar</button></div>`;
+  // Atendimento: quem cuida do chamado; assumir, ou transferir para outro N1 (quem transfere deixa de ver)
+  if (a.assumir || a.transferir) {
+    html = `<div class="bloco"><h3>Atendimento</h3>
+      <p class="atendente-atual">${c.atendenteNome ? `Atendente: <b>${esc(c.atendenteNome)}</b>` : 'Ninguém assumiu este chamado ainda.'}</p>
+      ${a.assumir ? `<button class="btn ${c.atendenteNome ? '' : 'btn-primario'}" id="b-assumir">Assumir atendimento</button>` : ''}</div>
+      ${a.transferir ? `<div class="bloco" data-editor-acao="Transferir para outro N1"><h3>Transferir</h3>
+        <div class="campo"><label for="t-para">Para quem</label><select id="t-para"><option value="">Carregando…</option></select></div>
+        <div class="campo"><label for="t-nota">Nota para quem recebe (opcional)</label><textarea id="t-nota"></textarea>
+          <div class="ajuda">Depois de transferir, você deixa de ver este chamado. Para só pedir ajuda a um setor sem perder o chamado, use Encaminhar ao setor.</div></div>
+        <button class="btn btn-primario" id="b-transferir">Transferir</button></div>` : ''}` + html;
+  }
   lat.insertAdjacentHTML('beforeend', html);
+  if ($('#t-para')) api('atendentesN1', S.token).then(lista => {
+    const outros = lista.filter(x => x.login !== S.usuario.login);
+    $('#t-para').innerHTML = outros.length ? '<option value="">Escolha…</option>' + outros.map(x => `<option value="${esc(x.login)}">${esc(x.nome)}${x.perfil === 'Admin' ? ' (Admin)' : ''}</option>`).join('')
+      : '<option value="">Ninguém mais no N1</option>';
+  }).catch(() => { });
   $$('[data-editor-acao]', lat).forEach(painel => {
     const titulo = painel.dataset.editorAcao;
     const bloco = document.createElement('div');
@@ -933,6 +952,17 @@ function painelN1(c, a, recarregar) {
     painel.appendChild(cancelar);
     $('[data-abrir-acao]', bloco).onclick = () => abrirEditor(painel, titulo);
   });
+  if ($('#b-assumir')) $('#b-assumir').onclick = async e => {
+    if (await acao(e.target, () => api('assumirChamado', S.token, c.Id), 'Você assumiu o atendimento.')) recarregar();
+  };
+  if ($('#b-transferir')) $('#b-transferir').onclick = async e => {
+    if (!$('#t-para').value) return aviso('Escolha para quem transferir.', 'erro');
+    const r = await acao(e.target, () => api('transferirChamado', S.token, c.Id, $('#t-para').value, $('#t-nota').value));
+    if (!r) return;
+    fecharEditor(true);
+    aviso('Chamado transferido para ' + r.para + '.', 'ok');
+    if (r.saiu) telaEquipe('fila'); else recarregar();
+  };
   if ($('#b-classif')) $('#b-classif').onclick = async e => {
     const r = await acao(e.target, () => api('salvarClassificacao', S.token, c.Id, { categoria: $('#c-cat').value, modulo: $('#c-mod') ? $('#c-mod').value : '', prioridade: $('#c-pri').value }));
     if (r) { aviso(r, 'ok'); recarregar(); }
@@ -969,6 +999,7 @@ function painelSetor(c, a, recarregar) {
 S.rascunhos = {};
 
 function pararChat() {
+  cancelarGravacao();
   if (S.chat && S.chat.timer) clearTimeout(S.chat.timer);
   S.chat = null;
 }
@@ -1043,8 +1074,12 @@ function desenharFeed(rolar) {
     html += sep + bolhaChat(h, continua);
     anterior = evento ? null : { quem, hora: new Date(h.DataHora) };
   });
+  // Um áudio tocando continua tocando: o elemento antigo volta para o lugar do novo
+  const tocando = $$('audio[data-audio]', feed).filter(a => !a.paused);
   feed.innerHTML = html;
+  tocando.forEach(a => { const novo = $(`audio[data-audio="${CSS.escape(a.dataset.audio)}"]`, feed); if (novo) novo.replaceWith(a); });
   $$('[data-arq]', feed).forEach(b => b.onclick = () => baixar(ch.id, b.dataset.arq, b));
+  $$('[data-ouvir]', feed).forEach(b => b.onclick = () => ouvirAudio(ch.id, b.dataset.ouvir, b));
   ligarAcoesChat(feed);
   if (rolar || perto) feed.scrollTop = feed.scrollHeight;
 }
@@ -1057,7 +1092,89 @@ function nomeAutorChat(h) {
   if (h.Perfil === 'Cliente' || h.Perfil === 'Sistema') return h.Perfil === 'Sistema' ? (h.Autor || 'Sistema') : h.Autor;
   return S.usuario.tipo === 'cliente' ? `${h.Autor}, atendimento` : `${h.Autor} (${h.Perfil})`;
 }
-const resumoChat = h => h.Tipo === 'ANEXO' ? 'Arquivo: ' + h.Texto : String(h.Texto || '').slice(0, 140);
+const resumoChat = h => h.Tipo === 'ANEXO' ? (ehAudio(h.Texto) ? 'Áudio' : 'Arquivo: ' + h.Texto) : String(h.Texto || '').slice(0, 140);
+// Gravações do próprio chat se chamam audio-....webm; outros .webm podem ser vídeo
+const ehAudio = nome => /\.(ogg|oga|opus|mp3|m4a|wav|aac)$/i.test(nome) || /^audio-.*\.webm$/i.test(nome);
+
+// O áudio vem do Drive em base64: baixa só quando alguém pede para ouvir e guarda para os redesenhos do feed
+async function ouvirAudio(id, ref, btn) {
+  const r = await acao(btn, () => api('baixarAnexo', S.token, id, ref));
+  if (!r) return;
+  const bin = atob(r.b64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  S.audios = S.audios || {};
+  S.audios[ref] = URL.createObjectURL(new Blob([bytes], { type: r.tipo }));
+  if (!btn.isConnected) return;
+  const audio = document.createElement('audio');
+  audio.controls = true; audio.src = S.audios[ref]; audio.dataset.audio = ref;
+  btn.replaceWith(audio);
+  audio.play().catch(() => { });
+}
+
+// Mensagem de voz: grava com o microfone e envia como anexo (precisa de HTTPS ou localhost)
+const LIMITE_GRAVACAO = 5 * 60000;
+function podeGravar() { return !!(window.MediaRecorder && navigator.mediaDevices && navigator.mediaDevices.getUserMedia); }
+
+function cancelarGravacao() {
+  const g = S.gravacao;
+  if (!g) return;
+  S.gravacao = null;
+  clearInterval(g.relogio); clearTimeout(g.limite);
+  g.descartar = true;
+  if (g.rec.state !== 'inactive') g.rec.stop();
+  g.stream.getTracks().forEach(t => t.stop());
+}
+
+async function gravarAudio() {
+  const ch = S.chat;
+  if (!ch || S.gravacao) return;
+  let stream;
+  try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+  catch (e) {
+    aviso(window.isSecureContext ? 'Não foi possível usar o microfone. Verifique a permissão do navegador.' : 'Gravar áudio só funciona com o SAC aberto em HTTPS.', 'erro');
+    return;
+  }
+  if (S.chat !== ch) { stream.getTracks().forEach(t => t.stop()); return; }
+  const tipo = ['audio/webm;codecs=opus', 'audio/ogg;codecs=opus', 'audio/mp4'].find(t => MediaRecorder.isTypeSupported(t)) || '';
+  const rec = new MediaRecorder(stream, tipo ? { mimeType: tipo } : undefined);
+  const g = S.gravacao = { rec, stream, partes: [], inicio: Date.now(), canal: ch.canal };
+  rec.ondataavailable = e => { if (e.data.size) g.partes.push(e.data); };
+  rec.onstop = async () => {
+    stream.getTracks().forEach(t => t.stop());
+    if (g.descartar || !g.partes.length) return;
+    const mime = rec.mimeType || g.partes[0].type || 'audio/webm';
+    const ext = /ogg/.test(mime) ? 'ogg' : /mp4|aac/.test(mime) ? 'm4a' : 'webm';
+    const agora = new Date(), dois = n => String(n).padStart(2, '0');
+    const nome = `audio-${agora.getFullYear()}${dois(agora.getMonth() + 1)}${dois(agora.getDate())}-${dois(agora.getHours())}${dois(agora.getMinutes())}${dois(agora.getSeconds())}.${ext}`;
+    const arquivo = new File(g.partes, nome, { type: mime.split(';')[0] });
+    if ($('#digitando')) $('#digitando').textContent = 'Enviando arquivo…';
+    try { await enviarArquivos(ch.id, [arquivo], g.canal === 'equipe'); } catch (err) { return; }
+    if ($('#digitando')) $('#digitando').textContent = '';
+    agendarChat(0);
+  };
+  rec.start(1000);
+  const rod = $('#chat-rodape');
+  rod.innerHTML = `<div class="chat-compor gravando">
+    <button type="button" class="clip" id="grav-cancelar" aria-label="Descartar áudio" title="Descartar áudio">✕</button>
+    <div class="campo-msg"><span class="ponto-gravando" aria-hidden="true"></span><span id="grav-tempo" aria-live="off">0:00</span><span class="suave pequeno">Gravando…</span></div>
+    <button class="btn-enviar" id="grav-enviar" aria-label="Enviar áudio" title="Enviar áudio">${iconeInterface('enviar')}</button></div>`;
+  g.relogio = setInterval(() => {
+    const s = Math.floor((Date.now() - g.inicio) / 1000);
+    if ($('#grav-tempo')) $('#grav-tempo').textContent = Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+  }, 500);
+  const terminar = enviar => {
+    if (S.gravacao !== g) return;
+    S.gravacao = null;
+    clearInterval(g.relogio); clearTimeout(g.limite);
+    g.descartar = !enviar;
+    if (rec.state !== 'inactive') rec.stop();
+    if (S.chat === ch) desenharRodape();
+  };
+  g.limite = setTimeout(() => { aviso('Áudio limitado a 5 minutos: enviando o que foi gravado.', 'ok'); terminar(true); }, LIMITE_GRAVACAO);
+  $('#grav-cancelar').onclick = () => terminar(false);
+  $('#grav-enviar').onclick = () => terminar(true);
+}
 // Pode responder no canal aberto? (mesma regra do campo de mensagem)
 const podeEscreverCanal = () => { const ch = S.chat; return !!ch && (ch.canal === 'equipe' || (ch.podeCliente && ch.acoes.responder)); };
 
@@ -1066,7 +1183,11 @@ function bolhaChat(h, continua) {
   if (h.Tipo === 'STATUS') return `<div class="evento">Status: <b>${esc(h.Texto)}</b> <span>${hora}</span></div>`;
   if (h.Tipo === 'AVISO' || h.Tipo === 'PESQUISA') return `<div class="evento">${esc(h.Texto)} <span>${hora}</span></div>`;
   const autor = h.meu || continua ? '' : esc(nomeAutorChat(h));
-  const corpo = h.Tipo === 'ANEXO'
+  const corpo = h.Tipo === 'ANEXO' && h.Ref && ehAudio(h.Texto)
+    ? `<div class="arquivo audio">${S.audios && S.audios[h.Ref]
+      ? `<audio controls src="${S.audios[h.Ref]}" data-audio="${esc(h.Ref)}"></audio>`
+      : `<button data-ouvir="${esc(h.Ref)}">▶ Ouvir áudio</button>`}<button data-arq="${esc(h.Ref)}">Baixar</button></div>`
+    : h.Tipo === 'ANEXO'
     ? `<div class="arquivo"><span>Arquivo: <b>${esc(h.Texto)}</b></span>${h.Ref ? `<button data-arq="${esc(h.Ref)}">Baixar</button>` : ''}</div>`
     : `<div class="corpo">${esc(h.Texto)}</div>`;
   const citada = h.RespostaA ? S.chat.itens.find(x => x.Id === h.RespostaA) : null;
@@ -1115,6 +1236,7 @@ function ligarAcoesChat(feed) {
 }
 
 function desenharRodape() {
+  cancelarGravacao();
   const ch = S.chat, rod = $('#chat-rodape');
   const u = S.usuario;
   let podeEscrever = false, motivo = '';
@@ -1132,6 +1254,7 @@ function desenharRodape() {
     <div class="campo-msg">
       ${ch.acoes.anexar || ch.canal === 'equipe' ? `<label class="clip" title="Enviar arquivo" aria-label="Enviar arquivo"><input type="file" id="chat-arq" multiple>${iconeInterface('clipe')}</label>` : ''}
       <textarea id="chat-txt" rows="1" placeholder="${ph}" aria-label="${ph}"></textarea>
+      ${(ch.acoes.anexar || ch.canal === 'equipe') && podeGravar() ? `<button type="button" class="clip" id="chat-mic" title="Gravar áudio" aria-label="Gravar áudio">${iconeInterface('microfone')}</button>` : ''}
     </div>
     <button class="btn-enviar" id="chat-env" aria-label="Enviar mensagem" title="Enviar (Enter)">${iconeInterface('enviar')}</button></div>`;
   const ta = $('#chat-txt');
@@ -1141,6 +1264,7 @@ function desenharRodape() {
   ta.oninput = () => { crescer(); ch.digitandoAte = Date.now() + 4000; S.rascunhos[ch.id + ':' + ch.canal] = ta.value; };
   ta.onkeydown = e => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); enviarMensagemChat(); } };
   $('#chat-env').onclick = enviarMensagemChat;
+  if ($('#chat-mic')) $('#chat-mic').onclick = () => { guardarRascunho(); gravarAudio(); };
   if ($('#b-cancelar-resposta')) $('#b-cancelar-resposta').onclick = () => { guardarRascunho(); ch.respondendo = null; desenharRodape(); $('#chat-txt').focus(); };
   if ($('#chat-arq')) $('#chat-arq').onchange = async e => {
     const arquivos = Array.from(e.target.files);
@@ -1330,23 +1454,26 @@ async function telaFila() {
       <select id="fs" aria-label="Status"><option value="ativos">Ativos</option><option value="">Todos</option>${S.base.status.map(s => `<option>${esc(s)}</option>`).join('')}</select>
       <select id="fp" aria-label="Prioridade"><option value="">Todas as prioridades</option><option>Bloqueio</option><option>Normal</option></select>
       <select id="fprojeto" aria-label="Projeto"><option value="">Todos os projetos</option>${[...new Set(lista.map(c => c.Projeto).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt-BR')).map(p => `<option>${esc(p)}</option>`).join('')}</select>
+      ${n1 ? '<select id="fatend" aria-label="Atendimento"><option value="">Todos os atendimentos</option><option value="meus">Meus atendimentos</option><option value="livres">Sem atendente</option></select>' : ''}
     </div>
     <div class="lista" id="lista"></div>`;
   $('#fs').value = f.status === undefined ? 'ativos' : f.status;
   $('#fp').value = f.prioridade || '';
   $('#fprojeto').value = f.projeto || '';
+  if ($('#fatend')) $('#fatend').value = f.atendimento || '';
   $('#b-atualizar').onclick = telaFila;
   const render = () => {
-    Object.assign(f, { busca: $('#q').value, status: $('#fs').value, prioridade: $('#fp').value, projeto: $('#fprojeto').value });
+    Object.assign(f, { busca: $('#q').value, status: $('#fs').value, prioridade: $('#fp').value, projeto: $('#fprojeto').value, atendimento: $('#fatend') ? $('#fatend').value : '' });
     const q = f.busca.toLowerCase();
     const itens = lista.filter(c =>
       (f.status === 'ativos' ? !FINAIS.includes(c.Status) : (!f.status || c.Status === f.status)) &&
       (!f.prioridade || c.Prioridade === f.prioridade) && (!f.projeto || c.Projeto === f.projeto) &&
+      (!f.atendimento || (f.atendimento === 'meus' ? c.meuAtendimento : !c.Atendente)) &&
       (!q || (c.Id + ' ' + c.Projeto + ' ' + c.Titulo + ' ' + c.Modulo + ' ' + c.Categoria).toLowerCase().includes(q)));
     $('#lista').innerHTML = itens.length ? itens.map(c => linhaChamado(c, true)).join('') : '<div class="vazio">Nenhum chamado aqui. Fila em dia.</div>';
     $$('#lista .linha-ch').forEach(b => b.onclick = () => telaDetalhe(b.dataset.id));
   };
-  ['#q', '#fs', '#fp', '#fprojeto'].forEach(s => { if ($(s)) $(s).oninput = render; });
+  ['#q', '#fs', '#fp', '#fprojeto', '#fatend'].forEach(s => { if ($(s)) $(s).oninput = render; });
   render();
 }
 
@@ -1436,7 +1563,7 @@ async function telaProjetos(acessos) {
     <div class="ajuda">Clientes (grupo Clientes) que estiverem neste grupo veem os chamados do projeto. As sugestões são grupos que já apareceram nos logins.</div></div>` : '';
   app.innerHTML = `
     <div class="cabeca-lista"><div><h1>Projetos</h1>
-      <p class="suave" style="margin:0">${sso() ? 'Os projetos vêm dos grupos Projeto_... do LLDAP: cada grupo aparece aqui no primeiro login de alguém dele. Aqui você completa responsável, e-mail e módulos.' : 'Gerencie os acessos, responsáveis e módulos de cada projeto.'}</p></div>
+      <p class="suave" style="margin:0">${sso() ? 'Os projetos vêm dos grupos Projeto_... do LLDAP: cada grupo aparece aqui no primeiro login de alguém dele. Aqui você define os módulos de cada projeto e vê os clientes que já entraram.' : 'Gerencie os acessos, responsáveis e módulos de cada projeto.'}</p></div>
       <div class="opcoes"><a class="btn" href="${esc(pastaGeral.url)}" target="_blank" rel="noopener">Ver pastas no Drive</a>${sso() ? '' : '<button class="btn" id="b-sinc">Buscar pastas novas</button><button class="btn btn-primario" id="b-novo-pj">Criar projeto</button>'}</div></div>
     ${caixaAcessos(acessos)}
     <div class="bloco" id="form-pj" hidden style="margin-bottom:18px"></div>
@@ -1522,12 +1649,13 @@ async function telaProjetos(acessos) {
     form.hidden = false;
     form.innerHTML = `<h2>Editar ${esc(c.Projeto)}</h2>
       <form id="f-pj" autocomplete="off"><div class="grade-2">
-        <div class="campo"><label for="pj-login">Login</label><input type="text" id="pj-login" autocapitalize="none" spellcheck="false" autocomplete="off" value="${esc(c.Login)}" required></div>
+        ${sso() ? '' : `<div class="campo"><label for="pj-login">Login</label><input type="text" id="pj-login" autocapitalize="none" spellcheck="false" autocomplete="off" value="${esc(c.Login)}" required></div>
         <div class="campo"><label for="pj-resp">Responsável (quem abre os chamados)</label><input type="text" id="pj-resp" value="${esc(c.Responsavel || '')}"></div>
         <div class="campo"><label for="pj-email">E-mail para os avisos</label><input type="email" id="pj-email" spellcheck="false" autocapitalize="none" value="${esc(c.Email || '')}"></div>
-        <div class="campo"><label for="pj-tel">Telefone</label><input type="tel" id="pj-tel" value="${esc(c.Telefone || '')}"></div>
+        <div class="campo"><label for="pj-tel">Telefone</label><input type="tel" id="pj-tel" value="${esc(c.Telefone || '')}"></div>`}
         ${campoGrupo(c.GrupoLldap)}
       </div>
+      ${sso() ? '<p class="ajuda" style="margin-top:-6px">Nome, e-mail e acesso são de cada cliente do projeto, na conta Innomaker (LLDAP). Veja quem já entrou no botão de olho da lista.</p>' : ''}
       ${tabelaModulos()}
       <label class="check" style="margin-bottom:14px"><input type="checkbox" id="pj-ativo" ${c.Ativo ? 'checked' : ''}> Acesso ativo</label>
       <button class="btn btn-primario" id="b-pj">Salvar alterações</button> <button type="button" class="btn" id="b-pj-x">Cancelar</button></form>`;
@@ -1535,8 +1663,9 @@ async function telaProjetos(acessos) {
     $('#b-pj-x').onclick = () => fecharEditor();
     $('#f-pj').onsubmit = async ev => {
       ev.preventDefault();
-      const d = { ProjetoId: c.ProjetoId, Login: $('#pj-login').value, Responsavel: $('#pj-resp').value,
-        Email: $('#pj-email').value, Telefone: $('#pj-tel').value, Ativo: $('#pj-ativo').checked, Modulos: lerTabelaModulos(form) };
+      const d = { ProjetoId: c.ProjetoId, Ativo: $('#pj-ativo').checked, Modulos: lerTabelaModulos(form) };
+      // Sem Authelia, o projeto tem login e contato próprios; com Authelia, isso é de cada cliente
+      if ($('#pj-login')) Object.assign(d, { Login: $('#pj-login').value, Responsavel: $('#pj-resp').value, Email: $('#pj-email').value, Telefone: $('#pj-tel').value });
       if ($('#pj-grupo')) d.GrupoLldap = $('#pj-grupo').value;
       if (await acao($('#b-pj'), () => api('salvarProjeto', S.token, d), 'Projeto salvo.')) telaProjetos();
     };
@@ -1990,7 +2119,7 @@ const GUIA = [
   { titulo: 'Acesso pelo Authelia e LLDAP', para: ['Admin'], so: 'authelia', html: `
     <p>Todos entram com a conta Innomaker (auth.innomaker.com.br). O SAC não guarda senhas: as orientações de senha das outras seções não se aplicam.</p>
     <ul><li><b>Equipe</b>: coloque a pessoa no grupo do perfil no LLDAP (<code>sac_admin</code>, <code>sac_n1</code>, <code>sac_software</code>...). No primeiro login, ela aparece em <b>Equipe</b>.</li>
-    <li><b>Projetos</b>: cada grupo <code>Projeto_...</code> do LLDAP vira um projeto do SAC no primeiro login de alguém do grupo (um projeto antigo com o mesmo nome ou código é reaproveitado). Em <b>Projetos &gt; Editar</b>, complete responsável, e-mail e módulos.</li>
+    <li><b>Projetos</b>: cada grupo <code>Projeto_...</code> do LLDAP vira um projeto do SAC no primeiro login de alguém do grupo (um projeto antigo com o mesmo nome ou código é reaproveitado). Em <b>Projetos &gt; Editar</b>, defina os módulos; nome e e-mail são de cada cliente, na conta Innomaker.</li>
     <li><b>Clientes</b>: o usuário precisa estar no grupo <code>Clientes</code> e no grupo <code>Projeto_...</code> de cada projeto em que participa. Quem participa de vários projetos vê todos e escolhe o projeto ao abrir um chamado.</li>
     <li><b>Grupos de projeto e equipe</b>: para funcionários, os grupos <code>Projeto_...</code> não mudam nada no SAC; o perfil vem só dos grupos <code>sac_</code>. Quem está em <code>Clientes</code> nunca recebe acesso de equipe.</li>
     <li><b>Tirar o acesso</b>: remova a pessoa do grupo ou desative o usuário no LLDAP. Sair da conta Innomaker ou desativá-la corta o SAC em até 30 segundos; mudanças de grupo valem em até 15 minutos.</li>

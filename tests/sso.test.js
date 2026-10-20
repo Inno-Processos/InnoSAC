@@ -136,7 +136,9 @@ async function main() {
     assert.match((await post('sessao-maria', 'abrirChamado', 'x', novo(''))).corpo.erro, /Escolha o projeto/);
     assert.match((await post('sessao-joao', 'abrirChamado', 'x', novo(innoboat.ProjetoId))).corpo.erro, /não participa/);
     const chMaria = (await post('sessao-maria', 'abrirChamado', 'x', novo(innoboat.ProjetoId))).corpo.resultado;
-    assert.deepEqual((await post('sessao-maria', 'meusChamados')).corpo.resultado.map(c => c.Id).sort(), [chJoao, chMaria].sort());
+    // Each client sees only the tickets they opened, even in a shared project (Maria and João are both in Marinha)
+    assert.deepEqual((await post('sessao-maria', 'meusChamados')).corpo.resultado.map(c => c.Id), [chMaria]);
+    assert.equal((await post('sessao-maria', 'detalheChamado', 'x', chJoao)).status, 400, 'Not even in the same project.');
     assert.deepEqual((await post('sessao-joao', 'meusChamados')).corpo.resultado.map(c => c.Id), [chJoao]);
     assert.equal((await post('sessao-joao', 'detalheChamado', 'x', chMaria)).status, 400, 'Clients only see their projects.');
     const detalhe = (await post('sessao-chefe', 'detalheChamado', 'x', chMaria)).corpo.resultado.chamado;

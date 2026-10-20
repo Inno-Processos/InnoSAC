@@ -15,7 +15,7 @@
     "instalar": "npm --workspace backend run instalar",
     "senha-admin": "npm --workspace backend run senha-admin",
     "backup": "npm --workspace backend run backup",
-    "test": "node --test tests/projetos.test.js tests/sessoes.test.js tests/interface.test.js tests/emails.test.js tests/api.test.js tests/sso.test.js tests/chat.test.js tests/automatico.test.js"
+    "test": "node --test tests/projetos.test.js tests/sessoes.test.js tests/interface.test.js tests/emails.test.js tests/api.test.js tests/sso.test.js tests/chat.test.js tests/automatico.test.js tests/atendimento.test.js"
   },
   "engines": {
     "node": ">=18"

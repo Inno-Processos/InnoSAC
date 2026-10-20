@@ -67,7 +67,8 @@ function cacheRemove(k) {
 const MIMES = { pdf: 'application/pdf', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp',
   txt: 'text/plain', csv: 'text/csv', json: 'application/json', zip: 'application/zip', doc: 'application/msword',
   docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', xls: 'application/vnd.ms-excel',
-  xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', mp4: 'video/mp4', html: 'text/html' };
+  xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', mp4: 'video/mp4', html: 'text/html',
+  webm: 'audio/webm', ogg: 'audio/ogg', oga: 'audio/ogg', opus: 'audio/ogg', mp3: 'audio/mpeg', m4a: 'audio/mp4', wav: 'audio/wav', aac: 'audio/aac' };
 const mimeDe = n => MIMES[String(n).split('.').pop().toLowerCase()] || 'application/octet-stream';
 
 const toBytes = buf => Array.from(buf, b => (b > 127 ? b - 256 : b));

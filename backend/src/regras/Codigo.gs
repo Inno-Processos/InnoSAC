@@ -98,7 +98,8 @@ const ABAS = {
   Chamados: ['Id', 'ProjetoId', 'Projeto', 'Usuario', 'Email', 'Abertura', 'Canal', 'Categoria', 'Modulo',
     'Titulo', 'Descricao', 'Bloqueio', 'Prioridade', 'Setor', 'Status', 'UltimaAtualizacao',
     'UltimaMudancaStatus', 'Prazo', 'AvisoAtrasoEnviado', 'ResolvidoEm', 'FechadoEm', 'FechadoPor',
-    'PastaId', 'Reaberturas', 'MotivoCancelamento'],
+    'PastaId', 'Reaberturas', 'MotivoCancelamento',
+    'ClienteLogin', 'Atendente'], // ClienteLogin: quem abriu (cliente da conta Innomaker); Atendente: login do N1 que assumiu
   Historico: ['Chamado', 'DataHora', 'Autor', 'Perfil', 'Tipo', 'Texto', 'Visivel', 'Ref', 'Id', 'RespostaA'], // RespostaA: Id da mensagem citada
   Reacoes: ['Chamado', 'Mensagem', 'Login', 'Nome', 'Emoji', 'DataHora'], // uma reação por pessoa em cada mensagem
   Leituras: ['Chave', 'Chamado', 'Email', 'Canal', 'LidoEm'], // Email guarda o login de quem leu
@@ -1063,10 +1064,87 @@ function obterChamado_(id) {
   return ch;
 }
 
+// Quem vê cada chamado:
+//  - cliente da conta Innomaker: só os que ele mesmo abriu (o login antigo do projeto vê o projeto todo);
+//  - Admin: todos;
+//  - N1: os sem atendente (para alguém assumir) e os que são dele. Transferiu, deixou de ver;
+//  - setor: os encaminhados a ele, enquanto estiverem encaminhados (o N1 atendente continua vendo).
 function podeVer_(p, ch) {
-  if (p.tipo === 'cliente') return projetosDe_(p).indexOf(String(ch.ProjetoId)) >= 0;
-  if (ehN1_(p)) return true;
+  if (p.tipo === 'cliente') {
+    if (projetosDe_(p).indexOf(String(ch.ProjetoId)) < 0) return false;
+    if (p.conta !== 'Clientes') return true;
+    return ch.ClienteLogin ? normLogin_(ch.ClienteLogin) === p.login : !!p.email && normEmail_(ch.Email) === p.email;
+  }
+  if (p.perfil === 'Admin') return true;
+  if (ehN1_(p)) { const a = atendenteDe_(ch); return !a || a === p.login; }
   return ch.Setor === p.perfil && ch.Status === STATUS.ENCAMINHADO;
+}
+
+// ───────── Atendente do chamado: o N1 que assumiu ─────────
+let _chamadosPronto = false;
+function garantirChamados_() { if (!_chamadosPronto) { garantirColunas_('Chamados'); _chamadosPronto = true; } }
+
+function atendenteDe_(ch) { return normLogin_(ch.Atendente); }
+
+function nomeDaEquipe_(login) {
+  const m = login ? ler_('Equipe').filter(function (x) { return normLogin_(x.Login) === normLogin_(login); })[0] : null;
+  return m ? String(m.Nome || m.Login) : String(login || '');
+}
+
+// Chamar dentro de comTrava_. O aviso fica só para a equipe (o cliente não vê).
+function definirAtendente_(ch, p, login, texto) {
+  garantirChamados_();
+  atualizar_('Chamados', ch._linha, { Atendente: login });
+  ch.Atendente = login;
+  registrar_(ch.Id, p, 'AVISO', texto, false);
+}
+
+// O N1 que age num chamado sem atendente (responde, faz a triagem, muda o status, encaminha) passa a ser o atendente
+function assumirSeLivre_(ch, p) {
+  if (ehN1_(p) && !atendenteDe_(ch)) definirAtendente_(ch, p, p.login, p.nome + ' assumiu o atendimento.');
+}
+
+function assumirChamado(token, id) {
+  const p = exigirN1_(sessao_(token));
+  comTrava_(function () {
+    const ch = obterChamado_(id);
+    exigirAcesso_(p, ch);
+    if (FINAIS.indexOf(ch.Status) >= 0) throw new Error('Este chamado já está encerrado.');
+    if (atendenteDe_(ch) === p.login) throw new Error('Você já é o atendente deste chamado.');
+    const anterior = atendenteDe_(ch);
+    definirAtendente_(ch, p, p.login, p.nome + (anterior ? ' assumiu o atendimento no lugar de ' + nomeDaEquipe_(anterior) + '.' : ' assumiu o atendimento.'));
+  });
+  return 'Você assumiu o atendimento.';
+}
+
+// Pessoas para quem o chamado pode ser transferido (N1 e Admin ativos)
+function atendentesN1(token) {
+  exigirN1_(sessao_(token));
+  return ler_('Equipe').filter(function (m) { return ativo_(m.Ativo) && ['N1', 'Admin'].indexOf(String(m.Perfil).trim()) >= 0; })
+    .map(function (m) { return { login: normLogin_(m.Login), nome: String(m.Nome || m.Login), perfil: String(m.Perfil).trim() }; })
+    .sort(function (a, b) { return a.nome.localeCompare(b.nome, 'pt-BR'); });
+}
+
+// Transferir: o chamado passa a ser de outro N1 e quem transferiu deixa de vê-lo (o Admin continua vendo tudo)
+function transferirChamado(token, id, para, nota) {
+  const p = exigirN1_(sessao_(token));
+  nota = limpa_(nota, 2000);
+  const destino = identificar_(normLogin_(para));
+  if (!destino || !ehN1_(destino)) throw new Error('Escolha uma pessoa do N1.');
+  if (destino.login === p.login) throw new Error('Escolha outra pessoa: o chamado já é seu.');
+  const ch = comTrava_(function () {
+    const ch = obterChamado_(id);
+    exigirAcesso_(p, ch);
+    if (FINAIS.indexOf(ch.Status) >= 0) throw new Error('Este chamado já está encerrado.');
+    definirAtendente_(ch, p, destino.login, p.nome + ' transferiu o atendimento para ' + destino.nome + '.' + (nota ? ' Nota: ' + nota : ''));
+    return ch;
+  });
+  if (destino.email) {
+    enviarEmail_(destino.email, '[' + ch.Id + '] Chamado transferido para você — ' + ch.Projeto,
+      '<p>' + esc_(p.nome) + ' transferiu para você o chamado <b>' + ch.Id + '</b>: ' + esc_(ch.Titulo) + '.</p>' +
+      (nota ? citacao_(nota) : '') + botao_('Abrir chamado', linkChamado_(ch.Id)));
+  }
+  return { saiu: p.perfil !== 'Admin', para: destino.nome };
 }
 
 function exigirAcesso_(p, ch) {
@@ -1145,7 +1223,10 @@ function resumo_(ch, p, pesquisas) {
     atrasado: ch.Prazo instanceof Date && agora > ch.Prazo && FINAIS.indexOf(ch.Status) < 0 && ch.Status !== STATUS.RESOLVIDO
   };
   if (p.tipo === 'cliente') { r.pesquisaPendente = pesquisaPendente_(ch, pesquisas); r.ProjetoId = ch.ProjetoId; r.Projeto = nomeProjetoCliente_(ch.Projeto); }
-  else { r.Projeto = ch.Projeto; r.Setor = ch.Setor; r.Canal = ch.Canal; }
+  else {
+    r.Projeto = ch.Projeto; r.Setor = ch.Setor; r.Canal = ch.Canal;
+    r.Atendente = atendenteDe_(ch) ? nomeDaEquipe_(ch.Atendente) : ''; r.meuAtendimento = atendenteDe_(ch) === p.login;
+  }
   return pub_(r);
 }
 
@@ -1163,9 +1244,12 @@ function acoes_(p, ch) {
     };
   }
   if (ehN1_(p)) {
+    const atendente = atendenteDe_(ch);
     return {
       transicoes: TRANSICOES_N1[ch.Status] || [], encaminhar: PODE_ENCAMINHAR.indexOf(ch.Status) >= 0,
-      responder: ativo, nota: true, anexar: ativo, classificar: ativo
+      responder: ativo, nota: true, anexar: ativo, classificar: ativo,
+      assumir: ativo && atendente !== p.login,
+      transferir: ativo && (atendente === p.login || (p.perfil === 'Admin' && !!atendente) || !atendente)
     };
   }
   return { devolver: ch.Status === STATUS.ENCAMINHADO, nota: true, anexar: true };
@@ -1179,7 +1263,7 @@ function meusChamados(token) {
   const pesquisas = ler_('Pesquisa');
   const novas = naoLidas_(p);
   return ler_('Chamados')
-    .filter(function (c) { return projetosDe_(p).indexOf(String(c.ProjetoId)) >= 0; })
+    .filter(function (c) { return c.Id && podeVer_(p, c); })
     .sort(function (a, b) { return b.Abertura - a.Abertura; })
     .map(function (c) { const r = resumo_(c, p, pesquisas); r.naoLidas = novas[c.Id] || 0; return r; });
 }
@@ -1213,8 +1297,9 @@ function detalheChamado(token, id) {
 
   const c = pub_(ch);
   delete c.PastaId; delete c.AvisoAtrasoEnviado;
+  if (p.tipo === 'equipe') c.atendenteNome = atendenteDe_(ch) ? nomeDaEquipe_(ch.Atendente) : '';
   if (p.tipo === 'cliente') {
-    delete c.ProjetoId;
+    delete c.ProjetoId; delete c.Atendente; delete c.ClienteLogin;
     c.Projeto = nomeProjetoCliente_(ch.Projeto);
     if (c.Usuario === ch.Projeto) c.Usuario = c.Projeto;
   }
@@ -1268,6 +1353,7 @@ function abrirChamado(token, d) {
   if (!bloqueio) throw new Error('Responda se o sistema está bloqueado.');
 
   const ch = comTrava_(function () {
+    garantirChamados_();
     const agora = new Date();
     const prioridade = bloqueio === 'Sim' ? 'Bloqueio' : 'Normal';
     const novo = {
@@ -1275,7 +1361,8 @@ function abrirChamado(token, d) {
       Email: normEmail_(cli.Email), Abertura: agora, Canal: p.tipo === 'cliente' ? 'Site' : 'Telefone',
       Categoria: categoria, Modulo: modulo, Titulo: titulo, Descricao: descricao, Bloqueio: bloqueio,
       Prioridade: prioridade, Setor: '', Status: STATUS.ABERTO, UltimaAtualizacao: agora,
-      UltimaMudancaStatus: agora, Prazo: calcularPrazo_(agora, prioridade), Reaberturas: 0
+      UltimaMudancaStatus: agora, Prazo: calcularPrazo_(agora, prioridade), Reaberturas: 0,
+      ClienteLogin: p.conta === 'Clientes' ? p.login : '', Atendente: p.tipo === 'equipe' ? p.login : ''
     };
     inserir_('Chamados', novo);
     registrar_(novo.Id, p, 'STATUS', 'Chamado aberto (' + novo.Canal + ')', true);
@@ -1316,6 +1403,7 @@ function responder(token, id, texto, respostaA) {
     const ch = obterChamado_(id);
     exigirAcesso_(p, ch);
     if (!acoes_(p, ch).responder) throw new Error('Este chamado não aceita mensagens no status "' + ch.Status + '".');
+    assumirSeLivre_(ch, p);
     registrar_(ch.Id, p, 'MENSAGEM', texto, true, '', respostaA);
     let mudou = false;
     if (p.tipo === 'cliente' && ch.Status === STATUS.AGUARDANDO) { mudarStatus_(ch, STATUS.ATENDIMENTO, p); mudou = true; }
@@ -1409,12 +1497,14 @@ function alterarStatus(token, id, novo, mensagem) {
   mensagem = limpa_(mensagem, 20000);
   const ch = comTrava_(function () {
     const ch = obterChamado_(id);
+    exigirAcesso_(p, ch);
     if ((TRANSICOES_N1[ch.Status] || []).indexOf(novo) < 0) throw new Error('Não é possível ir de "' + ch.Status + '" para "' + novo + '".');
     if ([STATUS.AGUARDANDO, STATUS.RESOLVIDO, STATUS.CANCELADO].indexOf(novo) >= 0 && !mensagem) {
       throw new Error('Escreva a mensagem ao cliente: o que falta, o que foi feito ou o motivo do cancelamento.');
     }
     const extra = {};
     if (novo === STATUS.CANCELADO) extra.MotivoCancelamento = mensagem;
+    assumirSeLivre_(ch, p);
     if (mensagem) registrar_(ch.Id, p, 'MENSAGEM', mensagem, true);
     return mudarStatus_(ch, novo, p, extra);
   });
@@ -1427,6 +1517,7 @@ function salvarClassificacao(token, id, d) {
   d = d || {};
   const r = comTrava_(function () {
     const ch = obterChamado_(id);
+    exigirAcesso_(p, ch);
     if (FINAIS.indexOf(ch.Status) >= 0) throw new Error('Chamado encerrado não pode ser reclassificado.');
     const campos = {};
     const mudancas = [];
@@ -1444,6 +1535,7 @@ function salvarClassificacao(token, id, d) {
     }
     const abrirTriagem = ch.Status === STATUS.ABERTO;
     if (!mudancas.length && !abrirTriagem) return { msg: 'Nada mudou.' };
+    assumirSeLivre_(ch, p);
     if (mudancas.length) {
       campos.UltimaAtualizacao = new Date();
       atualizar_('Chamados', ch._linha, campos);
@@ -1464,7 +1556,9 @@ function encaminhar(token, id, setor, nota) {
   if (!nota) throw new Error('Escreva o que o setor precisa fazer.');
   const r = comTrava_(function () {
     const ch = obterChamado_(id);
+    exigirAcesso_(p, ch);
     if (PODE_ENCAMINHAR.indexOf(ch.Status) < 0) throw new Error('Não é possível encaminhar no status "' + ch.Status + '".');
+    assumirSeLivre_(ch, p);
     registrar_(ch.Id, p, 'NOTA_INTERNA', 'Para ' + setor + ': ' + nota, false);
     const mesmo = ch.Status === STATUS.ENCAMINHADO;
     if (mesmo) {
@@ -2372,10 +2466,12 @@ function salvarProjeto(token, d) {
     const pj = projetoPorId_(d.ProjetoId);
     if (!pj) throw new Error('Projeto não encontrado.');
     const login = loginLivre_(pj.Projeto, d.Login || pj.Login, pj.Login);
-    const campos = {
-      Responsavel: limpa_(d.Responsavel, 120), Email: email, Telefone: limpa_(d.Telefone, 40),
-      Login: login, Ativo: d.Ativo === false ? 'NAO' : 'SIM', Modulos: serializarModulos_(d.Modulos)
-    };
+    // Só altera o que veio: com Authelia, a tela não envia login nem contato (são de cada cliente)
+    const campos = { Ativo: d.Ativo === false ? 'NAO' : 'SIM', Modulos: serializarModulos_(d.Modulos) };
+    if (d.Login !== undefined) campos.Login = login;
+    if (d.Responsavel !== undefined) campos.Responsavel = limpa_(d.Responsavel, 120);
+    if (d.Email !== undefined) campos.Email = email;
+    if (d.Telefone !== undefined) campos.Telefone = limpa_(d.Telefone, 40);
     if (d.GrupoLldap !== undefined) campos.GrupoLldap = grupoProjetoLivre_(d.GrupoLldap, pj.ProjetoId);
     garantirColunas_('Projetos');
     atualizar_('Projetos', pj._linha, campos);
@@ -2720,7 +2816,11 @@ function enviarAvisosPendentes_() {
 
 function notificarN1_(assunto, html, id, sempre) {
   if (!sempre && String(cfg_().NOTIFICAR_EQUIPE).toUpperCase() !== 'SIM') return;
-  const emails = emailsEquipe_('N1').concat(emailsEquipe_('Admin'));
+  let emails = emailsEquipe_('N1').concat(emailsEquipe_('Admin'));
+  // Chamado com atendente: o aviso vai só para quem está cuidando dele
+  const ch = id ? ler_('Chamados').filter(function (c) { return String(c.Id) === String(id); })[0] : null;
+  const atendente = ch && atendenteDe_(ch) ? identificar_(ch.Atendente) : null;
+  if (atendente && atendente.email) emails = [atendente.email];
   if (emails.length) enviarEmail_(emails.join(','), assunto, html + botao_('Abrir chamado', linkChamado_(id)));
 }
 

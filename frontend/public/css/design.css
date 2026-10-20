@@ -175,6 +175,8 @@ body.sac-interno .bolha.abertura {
 body.sac-interno .bolha.abertura .autor { color: var(--suave); font-weight: 600; }
 body.sac-interno .bolha .arquivo { gap: 12px; padding: 4px 0; }
 body.sac-interno .bolha .arquivo button { border-radius: 999px; padding: 4px 12px; font-size: 12px; }
+body.sac-interno .bolha .arquivo.audio { flex-wrap: wrap; }
+body.sac-interno .bolha .arquivo.audio audio { width: min(260px, 100%); height: 36px; }
 body.sac-interno .chat-feed.interno .bolha { background: var(--nota); color: var(--texto); }
 body.sac-interno .chat-feed.interno .bolha.meu { background: var(--superficie); }
 
@@ -210,6 +212,7 @@ body.sac-interno .campo-msg textarea, body.sac-interno .chat-compor textarea {
 }
 body.sac-interno .campo-msg textarea:focus { outline: none; }
 body.sac-interno .clip { width: 38px; height: 38px; margin: 1px 0; border: 0; border-radius: 50%; color: var(--suave); }
+body.sac-interno button.clip { flex: none; padding: 0; background: transparent; font: inherit; }
 body.sac-interno .clip:hover { background: var(--elevado); color: var(--texto); }
 body.sac-interno .clip .ico { width: 20px; height: 20px; }
 body.sac-interno .btn-enviar {
@@ -220,6 +223,12 @@ body.sac-interno .btn-enviar:hover { background: var(--tinta); }
 body.sac-interno .btn-enviar:disabled { opacity: .55; }
 body.sac-interno .btn-enviar .ico { width: 20px; height: 20px; }
 @media (prefers-color-scheme: dark) { body.sac-interno .btn-enviar { color: #0c1a0b; } }
+body.sac-interno .chat-compor.gravando { align-items: center; }
+body.sac-interno .chat-compor.gravando .campo-msg { align-items: center; gap: 10px; min-height: 44px; padding: 0 16px; }
+body.sac-interno .ponto-gravando { width: 10px; height: 10px; border-radius: 50%; background: #d93025; animation: piscar-gravando 1s ease-in-out infinite; }
+@keyframes piscar-gravando { 50% { opacity: .25; } }
+@media (prefers-reduced-motion: reduce) { body.sac-interno .ponto-gravando { animation: none; } }
+body.sac-interno #grav-tempo { font-variant-numeric: tabular-nums; font-weight: 600; }
 body.sac-interno .chat-fechado { padding: 16px 20px; font-size: 13px; text-align: center; }
 
 /* Painel lateral do chamado */
@@ -252,3 +261,8 @@ body.sac-interno .editor-modal { border-color: var(--linha); box-shadow: 0 24px 
 @media (prefers-reduced-motion: no-preference) {
   body.sac-interno .msg-acoes { transition: opacity .15s; }
 }
+
+/* Atendimento: quem cuida do chamado */
+body.sac-interno .linha-ch .meta .sem-atendente { color: var(--atencao); font-weight: 600; }
+body.sac-interno .atendente-atual { margin: 0 0 12px; font-size: 14px; color: var(--suave); }
+body.sac-interno .atendente-atual b { color: var(--texto); }
