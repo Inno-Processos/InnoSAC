@@ -1252,7 +1252,12 @@ function acoes_(p, ch) {
       transferir: ativo && (atendente === p.login || (p.perfil === 'Admin' && !!atendente) || !atendente)
     };
   }
-  return { devolver: ch.Status === STATUS.ENCAMINHADO, nota: true, anexar: true };
+  return { devolver: ch.Status === STATUS.ENCAMINHADO, nota: true, anexar: true, responder: falaComCliente_(p, ch) };
+}
+
+// O setor fala com o cliente enquanto o chamado está encaminhado a ele; ao devolver, volta a ser só o N1
+function falaComCliente_(p, ch) {
+  return p.tipo === 'cliente' || ehN1_(p) || (p.tipo === 'equipe' && ch.Status === STATUS.ENCAMINHADO && ch.Setor === p.perfil);
 }
 
 // ───────────────────────── Chamados: leitura ─────────────────────────
@@ -1311,7 +1316,7 @@ function detalheChamado(token, id) {
   }
   return pub_({
     chamado: c, historico: historico, anexos: anexos, acoes: acoes_(p, ch),
-    chat: { ver: versaoChat_(id), canais: canais, ladoOnline: ladoOnline_(id, p), podeEscreverCliente: p.tipo === 'cliente' || ehN1_(p) },
+    chat: { ver: versaoChat_(id), canais: canais, ladoOnline: ladoOnline_(id, p), podeEscreverCliente: falaComCliente_(p, ch) },
     limiteReabertura: ch.Status === STATUS.FECHADO ? limiteReabertura_(ch) : null,
     limiteResposta: [STATUS.AGUARDANDO, STATUS.RESOLVIDO].indexOf(ch.Status) >= 0 ? limiteResposta_(ch) : null
   });
@@ -1397,11 +1402,11 @@ function responder(token, id, texto, respostaA) {
   const p = sessao_(token);
   texto = limpa_(texto, 20000);
   if (!texto) throw new Error('Escreva a mensagem.');
-  if (p.tipo === 'equipe' && !ehN1_(p)) throw new Error('Os setores falam com o cliente pelo N1. Use uma nota interna.');
 
   const r = comTrava_(function () {
     const ch = obterChamado_(id);
     exigirAcesso_(p, ch);
+    if (p.tipo === 'equipe' && !falaComCliente_(p, ch)) throw new Error('O setor fala com o cliente só enquanto o chamado está encaminhado a ele. Use o chat interno da equipe.');
     if (!acoes_(p, ch).responder) throw new Error('Este chamado não aceita mensagens no status "' + ch.Status + '".');
     assumirSeLivre_(ch, p);
     registrar_(ch.Id, p, 'MENSAGEM', texto, true, '', respostaA);
@@ -1415,6 +1420,11 @@ function responder(token, id, texto, respostaA) {
     if (r.mudou) emailStatus_(r.ch);
     if (!online_(r.ch.Id, 'n1') && podeAvisar_(r.ch.Id, 'n1')) {
       notificarN1_('Nova mensagem do cliente — ' + r.ch.Id, '<p>' + esc_(r.ch.Projeto) + ' escreveu no chat:</p>' + citacao_(texto), r.ch.Id);
+    }
+    if (r.ch.Status === STATUS.ENCAMINHADO && r.ch.Setor && !online_(r.ch.Id, 'setor') && podeAvisar_(r.ch.Id, 'setor-cliente')) {
+      const emails = emailsEquipe_(r.ch.Setor);
+      if (emails.length) enviarEmail_(emails.join(','), '[' + r.ch.Id + '] Nova mensagem do cliente',
+        '<p>' + esc_(r.ch.Projeto) + ' escreveu no chat do chamado encaminhado ao seu setor:</p>' + citacao_(texto) + botao_('Abrir chamado', linkChamado_(r.ch.Id)));
     }
   } else if (!online_(r.ch.Id, 'cliente') && podeAvisar_(r.ch.Id, 'cliente')) {
     enviarEmail_(emailCliente_(r.ch), '[' + r.ch.Id + '] Nova mensagem no chat do chamado',
@@ -1698,7 +1708,7 @@ function online_(id, lado) { return !!CacheService.getScriptCache().get('online:
 
 function ladoOnline_(id, p) {
   const lado = ladoDe_(p);
-  if (lado === 'cliente') return { atendimento: online_(id, 'n1') };
+  if (lado === 'cliente') return { atendimento: online_(id, 'n1') || online_(id, 'setor') };
   if (lado === 'n1') return { cliente: online_(id, 'cliente'), setor: online_(id, 'setor') };
   return { atendimento: online_(id, 'n1') };
 }
@@ -1776,7 +1786,7 @@ function naoLidas_(p) {
   ler_('Leituras').forEach(function (l) {
     if (normLogin_(l.Email) === p.login) lidos[l.Chamado + '|' + l.Canal] = l.LidoEm;
   });
-  const canais = p.tipo === 'cliente' ? ['cliente'] : (ehN1_(p) ? ['cliente', 'equipe'] : ['equipe']);
+  const canais = canaisDe_(p);
   const m = {};
   ler_('Historico').forEach(function (h) {
     const canal = h.Tipo === 'MENSAGEM' ? 'cliente' : (h.Tipo === 'NOTA_INTERNA' ? 'equipe' : null);
@@ -1823,10 +1833,10 @@ function anexar(token, id, arquivo, interno) {
   const p = sessao_(token);
   if (!arquivo || !arquivo.b64) throw new Error('Arquivo vazio.');
   const nome = limpa_(arquivo.nome, 180).replace(/[\\/:*?"<>|]/g, '_') || 'arquivo';
-  const ehInterno = p.tipo === 'equipe' && (interno === true || !ehN1_(p));
   return comTrava_(function () {
     const ch = obterChamado_(id);
     exigirAcesso_(p, ch);
+    const ehInterno = p.tipo === 'equipe' && (interno === true || !falaComCliente_(p, ch));
     if (!acoes_(p, ch).anexar) throw new Error('Este chamado não aceita anexos no status "' + ch.Status + '".');
     const blob = Utilities.newBlob(Utilities.base64Decode(arquivo.b64), arquivo.tipo || 'application/octet-stream', nome);
     const f = pastaChamado_(ch).createFile(blob);
@@ -2831,7 +2841,7 @@ function textoStatus_(status) {
     'Em triagem': 'O atendimento está conferindo a categoria, o módulo e a prioridade do seu chamado.',
     'Em atendimento': 'Seu chamado está em atendimento.',
     'Aguardando cliente': 'Precisamos de uma informação ou de um teste seu para continuar. Responda pelo portal em até ' + c.DIAS_UTEIS_AUTOFECHAMENTO + ' dias úteis; sem resposta, o chamado é fechado.',
-    'Encaminhado ao setor': 'Seu chamado foi encaminhado ao setor responsável. O atendimento continua sendo o seu contato.',
+    'Encaminhado ao setor': 'Seu chamado foi encaminhado ao setor responsável. O setor pode falar com você por aqui, no chat do chamado.',
     'Resolvido': 'Enviamos a correção ou a resposta. Confira e, pelo portal, confirme a correção ou peça um reajuste em até ' + c.DIAS_UTEIS_AUTOFECHAMENTO + ' dias úteis.',
     'Fechado': 'Seu chamado foi encerrado. Se precisar, você pode reabri-lo em até ' + c.DIAS_UTEIS_REABERTURA + ' dias úteis.',
     'Cancelado': 'Seu chamado foi cancelado.'

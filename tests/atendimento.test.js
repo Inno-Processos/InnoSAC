@@ -64,8 +64,25 @@ try {
   assert.equal(ve('ana', id), true);
   assert.equal(ve('sofia', id), true);
   assert.equal(run('detalheChamado', 'admin', id).chamado.atendenteNome, 'Ana');
+
+  // While forwarded, the sector talks to the client directly (messages and visible attachments)
+  const dSofia = run('detalheChamado', 'sofia', id);
+  assert.deepEqual([dSofia.chat.podeEscreverCliente, dSofia.acoes.responder], [true, true]);
+  enviados = [];
+  cache.remove('aviso:' + id + ':cliente'); // Ana's message already used the 10-minute notice window
+  run('enviarChat', 'sofia', id, 'cliente', 'Qual CFOP aparece na nota?');
+  assert(run('detalheChamado', 'cliente', id).historico.some(h => h.Tipo === 'MENSAGEM' && h.Texto === 'Qual CFOP aparece na nota?'), 'The client sees the sector message.');
+  assert(enviados.some(m => m.to === 'cliente@teste.com' && /Nova mensagem no chat/.test(m.subject)), 'The client is told about it.');
+  assert.equal(run('detalheChamado', 'admin', id).chamado.atendenteNome, 'Ana', 'The sector does not become the atendente.');
+  run('anexar', 'sofia', id, { nome: 'print.png', tipo: 'image/png', b64: Buffer.from('x').toString('base64') }, false);
+  assert(run('detalheChamado', 'cliente', id).anexos.some(a => a.Nome === 'print.png'), 'Sector attachments in the client chat are visible.');
+  enviados = [];
+  run('enviarChat', 'cliente', id, 'cliente', 'É o 5102.');
+  assert(enviados.some(m => m.to === 'sofia@innomaker.com.br' && /Nova mensagem do cliente/.test(m.subject)), 'The sector hears the client reply.');
+
   run('devolverAoN1', 'sofia', id, 'Corrigido o CFOP.');
   assert.equal(ve('sofia', id), false, 'Back with the N1, the sector no longer sees it.');
+  assert.throws(() => run('enviarChat', 'sofia', id, 'cliente', 'Mais uma coisa'), /não tem acesso/, 'Back with the N1, the sector can no longer write.');
   assert.equal(ve('ana', id), true);
 
   // Transferring to another N1: Ana loses it, Bruno gets it and an e-mail

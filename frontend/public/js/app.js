@@ -1241,7 +1241,7 @@ function desenharRodape() {
   const u = S.usuario;
   let podeEscrever = false, motivo = '';
   if (ch.canal === 'equipe') podeEscrever = true;
-  else if (!ch.podeCliente) motivo = 'Somente o N1 conversa com o cliente. Use o chat interno da equipe.';
+  else if (!ch.podeCliente) motivo = 'O setor conversa com o cliente só enquanto o chamado está encaminhado a ele. Use o chat interno da equipe.';
   else if (ch.acoes.responder) podeEscrever = true;
   else motivo = ch.c.Status === 'Fechado' && u.tipo === 'cliente'
     ? 'Chat encerrado. Para continuar, reabra o chamado no quadro acima.'
