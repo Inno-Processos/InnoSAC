@@ -68,14 +68,23 @@ try {
   // While forwarded, the sector talks to the client directly (messages and visible attachments)
   const dSofia = run('detalheChamado', 'sofia', id);
   assert.deepEqual([dSofia.chat.podeEscreverCliente, dSofia.acoes.responder], [true, true]);
+  // Every team reply e-mails the client right away: no "online" check, no 10-minute window
   enviados = [];
-  cache.remove('aviso:' + id + ':cliente'); // Ana's message already used the 10-minute notice window
   run('enviarChat', 'sofia', id, 'cliente', 'Qual CFOP aparece na nota?');
+  run('enviarChat', 'sofia', id, 'cliente', 'Pode mandar um print?');
   assert(run('detalheChamado', 'cliente', id).historico.some(h => h.Tipo === 'MENSAGEM' && h.Texto === 'Qual CFOP aparece na nota?'), 'The client sees the sector message.');
-  assert(enviados.some(m => m.to === 'cliente@teste.com' && /Nova mensagem no chat/.test(m.subject)), 'The client is told about it.');
+  assert.equal(enviados.filter(m => m.to === 'cliente@teste.com' && /Nova mensagem no chat/.test(m.subject)).length, 2, 'One e-mail per reply.');
+  enviados = [];
+  run('enviarChat', 'sofia', id, 'equipe', 'Nota só da equipe');
+  assert(!enviados.some(m => m.to === 'cliente@teste.com'), 'Internal notes never e-mail the client.');
   assert.equal(run('detalheChamado', 'admin', id).chamado.atendenteNome, 'Ana', 'The sector does not become the atendente.');
+  enviados = [];
   run('anexar', 'sofia', id, { nome: 'print.png', tipo: 'image/png', b64: Buffer.from('x').toString('base64') }, false);
   assert(run('detalheChamado', 'cliente', id).anexos.some(a => a.Nome === 'print.png'), 'Sector attachments in the client chat are visible.');
+  assert(enviados.some(m => m.to === 'cliente@teste.com' && /print\.png/.test(m.html || m.htmlBody || JSON.stringify(m))), 'A visible attachment e-mails the client too.');
+  enviados = [];
+  run('anexar', 'sofia', id, { nome: 'log.txt', tipo: 'text/plain', b64: Buffer.from('x').toString('base64') }, true);
+  assert(!enviados.some(m => m.to === 'cliente@teste.com'), 'Internal attachments do not.');
   enviados = [];
   run('enviarChat', 'cliente', id, 'cliente', 'É o 5102.');
   assert(enviados.some(m => m.to === 'sofia@innomaker.com.br' && /Nova mensagem do cliente/.test(m.subject)), 'The sector hears the client reply.');

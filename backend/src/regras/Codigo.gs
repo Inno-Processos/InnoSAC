@@ -1426,12 +1426,15 @@ function responder(token, id, texto, respostaA) {
       if (emails.length) enviarEmail_(emails.join(','), '[' + r.ch.Id + '] Nova mensagem do cliente',
         '<p>' + esc_(r.ch.Projeto) + ' escreveu no chat do chamado encaminhado ao seu setor:</p>' + citacao_(texto) + botao_('Abrir chamado', linkChamado_(r.ch.Id)));
     }
-  } else if (!online_(r.ch.Id, 'cliente') && podeAvisar_(r.ch.Id, 'cliente')) {
-    enviarEmail_(emailCliente_(r.ch), '[' + r.ch.Id + '] Nova mensagem no chat do chamado',
-      '<p>Olá, ' + esc_(nomeCliente_(r.ch)) + '.</p><p>O atendimento escreveu no chat do chamado <b>' + r.ch.Id + '</b> — ' + esc_(r.ch.Titulo) + ':</p>' +
-      citacao_(texto) + botao_('Abrir o chat', linkChamado_(r.ch.Id)));
-  }
+  } else avisarClienteResposta_(r.ch, citacao_(texto));
   return true;
+}
+
+// Toda resposta da equipe ao cliente (mensagem ou arquivo visível) vai por e-mail na hora
+function avisarClienteResposta_(ch, conteudo) {
+  enviarEmail_(emailCliente_(ch), '[' + ch.Id + '] Nova mensagem no chat do chamado',
+    '<p>Olá, ' + esc_(nomeCliente_(ch)) + '.</p><p>O atendimento respondeu no chat do chamado <b>' + ch.Id + '</b> — ' + esc_(ch.Titulo) + ':</p>' +
+    conteudo + botao_('Abrir o chat', linkChamado_(ch.Id)));
 }
 
 function confirmarCorrecao(token, id) {
@@ -1833,7 +1836,7 @@ function anexar(token, id, arquivo, interno) {
   const p = sessao_(token);
   if (!arquivo || !arquivo.b64) throw new Error('Arquivo vazio.');
   const nome = limpa_(arquivo.nome, 180).replace(/[\\/:*?"<>|]/g, '_') || 'arquivo';
-  return comTrava_(function () {
+  const r = comTrava_(function () {
     const ch = obterChamado_(id);
     exigirAcesso_(p, ch);
     const ehInterno = p.tipo === 'equipe' && (interno === true || !falaComCliente_(p, ch));
@@ -1846,8 +1849,10 @@ function anexar(token, id, arquivo, interno) {
     });
     registrar_(ch.Id, p, 'ANEXO', nome, !ehInterno, f.getId());
     tocar_(ch);
-    return true;
+    return { ch: ch, avisar: p.tipo === 'equipe' && !ehInterno };
   });
+  if (r.avisar) avisarClienteResposta_(r.ch, '<p>Arquivo enviado: <b>' + esc_(nome) + '</b></p>');
+  return true;
 }
 
 function baixarAnexo(token, id, arquivoId) {
