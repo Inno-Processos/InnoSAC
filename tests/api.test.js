@@ -52,7 +52,7 @@ async function main() {
     assert.equal((await post(api, 'dadosPublicos', [], { Origin: 'https://outro.example' })).headers.get('access-control-allow-origin'), null);
 
     const pagina = await (await fetch(web + '/')).text();
-    for (const ref of ['config.js', 'js/api.js', 'js/app.js', 'js/inicio.js', 'css/estilo.css', 'css/interno.css']) {
+    for (const ref of ['config.js', 'js/api.js', 'js/app.js', 'js/inicio.js', 'css/estilo.css', 'css/interno.css', 'css/design.css']) {
       assert(pagina.includes(ref), ref);
       assert.equal((await fetch(`${web}/${ref}`)).status, 200, ref);
     }

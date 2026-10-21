@@ -94,6 +94,11 @@ try {
   assert.throws(() => configurar({ DIAS_FUNCIONAMENTO: '' }), /pelo menos um dia/);
   assert.throws(() => configurar({ LIMITE_ALTO_VOLUME: '0' }), /entre 1 e 1000/);
   assert.throws(() => configurar({ MSG_M02: '   ' }), /não pode ficar vazia/);
+  const feriadosAntes = run('configuracoes', 'admin').feriados;
+  for (const data of ['2026-02-31', '2026-13-01', '2026-00-10', '2026-01-00', '2025-02-29']) {
+    assert.throws(() => run('salvarFeriados', 'admin', [{ data, descricao: 'Inválido' }]), /Data inválida/);
+  }
+  assert.deepEqual(run('configuracoes', 'admin').feriados, feriadosAntes);
   configurar({ MSG_M02: '{saudacao}, {SAUDACAO}! Linha 1\nLinha 2' });
   assert.equal(run('mensagemAutomatica_', 'M02', new Date(2026, 9, 19, 14, 0)), 'Boa tarde, Boa tarde! Linha 1\nLinha 2');
 } finally { console.log = log; }

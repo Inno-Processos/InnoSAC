@@ -1772,11 +1772,8 @@ function podeAvisar_(id, alvo) {
 }
 
 function acessoChat_(token, p, id) {
-  const cache = CacheService.getScriptCache();
-  const k = 'acesso:' + token.slice(0, 16) + ':' + id;
-  if (cache.get(k)) return;
+  // Transferências e exclusões precisam cortar o acesso já na próxima atualização.
   exigirAcesso_(p, obterChamado_(id));
-  cache.put(k, '1', 60);
 }
 
 /** Chamado a cada poucos segundos pela tela do chamado. Só lê a planilha quando há novidade. */
@@ -2209,7 +2206,9 @@ function salvarFeriados(token, lista) {
   const linhas = (lista || []).map(function (f) {
     const m = String(f.data || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
     if (!m) throw new Error('Data inválida: ' + f.data);
-    return [new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])), limpa_(f.descricao, 120)];
+    const data = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+    if (iso_(data) !== String(f.data)) throw new Error('Data inválida: ' + f.data);
+    return [data, limpa_(f.descricao, 120)];
   }).filter(function (l) { const k = iso_(l[0]); if (vistos[k]) return false; vistos[k] = true; return true; })
     .sort(function (a, b) { return a[0] - b[0]; });
   comTrava_(function () { reescreverAba_('Feriados', linhas); });
@@ -2460,7 +2459,7 @@ function sincronizarProjetos_() {
 }
 
 function limparModulos_(texto) {
-  const vistos = {};
+  const vistos = Object.create(null);
   return String(texto || '').split(/[\n;,]+/).map(function (m) { return limpa_(m, 60); })
     .filter(function (m) { if (!m || vistos[m.toLowerCase()]) return false; vistos[m.toLowerCase()] = true; return true; })
     .join('\n');
@@ -2720,7 +2719,7 @@ function relatorio(token, filtro) {
   const pesquisas = ler_('Pesquisa');
 
   const agrupar = function (campo, vazio) {
-    const m = {};
+    const m = Object.create(null);
     chamados.forEach(function (c) { const k = String(c[campo] || vazio); (m[k] = m[k] || []).push(c); });
     return Object.keys(m).map(function (k) {
       const r = metricas_(m[k], pesquisas, agora); r.nome = k; return r;

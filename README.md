@@ -179,7 +179,8 @@ com nome e descrição opcional. Use **Adicionar módulo** para incluir linhas e
 Os módulos cadastrados no formato antigo continuam disponíveis.
 
 ## Manutenção
-- Verificação completa, incluindo modais, exclusões e a API: `npm test`.
+- Testes automatizados de modais, exclusões, permissões e API: `npm test`.
+- `tests/botoes.test.js` exercita os controles da interface contra as regras reais, com dados temporários. Downloads, clipboard, microfone e impressão são simulados; a conferência visual em navegador e os serviços externos precisam de validação no ambiente de implantação.
 - Verificação da API e do frontend em processos reais: `node tests/api.test.js` (dados temporários isolados).
 - Verificação de projetos e nomes exibidos ao cliente: `node tests/projetos.test.js` (dados temporários isolados).
 - Verificação de sessão, F5 e logout: `node tests/sessoes.test.js`.

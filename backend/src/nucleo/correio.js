@@ -2,6 +2,7 @@
 'use strict';
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 
 function criarCorreio(pastaEmails) {
   let transporte = null;
@@ -21,7 +22,7 @@ function criarCorreio(pastaEmails) {
         transporte.sendMail({ from: m.name ? `"${m.name}" <${de}>` : de, to: m.to, cc: m.cc, bcc: m.bcc, replyTo: m.replyTo,
           subject: m.subject, text: m.body, html: m.htmlBody }).catch(e => console.error('Falha no e-mail para', m.to, e.message));
       } else {
-        const f = path.join(pastaEmails, Date.now() + '-' + String(m.to).replace(/[^a-z0-9@._-]/gi, '_') + '.html');
+        const f = path.join(pastaEmails, Date.now() + '-' + crypto.randomUUID() + '-' + String(m.to).replace(/[^a-z0-9@._-]/gi, '_') + '.html');
         fs.writeFileSync(f, `<!-- Para: ${m.to}\nAssunto: ${m.subject} -->\n` + (m.htmlBody || `<pre>${m.body || ''}</pre>`));
         console.log('[e-mail salvo] para', m.to, '—', m.subject);
       }

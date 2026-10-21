@@ -61,5 +61,22 @@ try {
   const delivery = executor.executar('envio');
   assert.equal(delivery.emailEnviado, false);
   assert.equal(delivery.emailSalvoLocal, true);
+  // Two messages to the same recipient in the same millisecond must both survive.
+  const { criarCorreio } = require('../backend/src/nucleo/correio');
+  const pastaEmails = fs.mkdtempSync(path.join(os.tmpdir(), 'sac-outbox-'));
+  const smtpHost = process.env.SMTP_HOST;
+  const agora = Date.now;
+  try {
+    process.env.SMTP_HOST = '';
+    Date.now = () => 1234567890;
+    criarCorreio(pastaEmails).despachar([
+      { to: 'teste@example.com', subject: 'Primeiro', htmlBody: '<p>Primeiro</p>' },
+      { to: 'teste@example.com', subject: 'Segundo', htmlBody: '<p>Segundo</p>' }
+    ]);
+    assert.equal(fs.readdirSync(pastaEmails).length, 2);
+  } finally {
+    Date.now = agora;
+    if (smtpHost === undefined) delete process.env.SMTP_HOST; else process.env.SMTP_HOST = smtpHost;
+  }
 } finally { console.log = log; }
 log('OK: equipe recebe senha ao criar/redefinir, edição preserva acesso, projetos sem envio automático, troca inicial, recuperação e aviso sem SMTP.');

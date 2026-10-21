@@ -185,7 +185,7 @@ document.addEventListener('click', e => {
 // ───────── Topo e navegação ─────────
 // Cada troca de tela ganha um número; respostas atrasadas de uma tela antiga são descartadas.
 S.nav = 0;
-function novaTela() { while (editorAberto) fecharEditor(true); return ++S.nav; }
+function novaTela() { while (editorAberto) fecharEditor(true); guardarRascunho(); pararChat(); return ++S.nav; }
 
 let editorAberto = null;
 let editorSequencia = 0;
@@ -399,6 +399,7 @@ function ligarVerSenha() {
     const mostrar = i.type === 'password';
     i.type = mostrar ? 'text' : 'password';
     b.textContent = mostrar ? 'Ocultar' : 'Mostrar';
+    b.setAttribute('aria-label', mostrar ? 'Ocultar senha' : 'Mostrar senha');
   });
 }
 
@@ -525,7 +526,8 @@ async function telaMeuCadastro(primeiraVez) {
   const nav = novaTela();
   app.innerHTML = '<div class="carregando">Carregando seu cadastro…</div>';
   let d;
-  try { d = await api('meuCadastro', S.token); } catch (e) { return; }
+  try { d = await api('meuCadastro', S.token); }
+  catch (e) { if (nav === S.nav && e.message !== 'SESSAO_EXPIRADA') app.innerHTML = `<div class="vazio">${esc(e.message)}</div>`; return; }
   if (nav !== S.nav) return;
   const saudacao = n => `Olá, ${n || '…'}.`;
   app.innerHTML = `
@@ -696,7 +698,8 @@ async function telaNovoChamado(porTelefone) {
   let clientes = [];
   if (porTelefone) {
     app.innerHTML = '<div class="carregando">Carregando projetos…</div>';
-    try { clientes = (await api('listarProjetos', S.token)).filter(c => c.Ativo); } catch (e) { return; }
+    try { clientes = (await api('listarProjetos', S.token)).filter(c => c.Ativo); }
+    catch (e) { if (nav === S.nav && e.message !== 'SESSAO_EXPIRADA') app.innerHTML = `<div class="vazio">${esc(e.message)}</div>`; return; }
     if (nav !== S.nav) return;
   } else if ((S.base.projetos || []).length > 1) {
     // Cliente em vários projetos escolhe o projeto do chamado
@@ -944,9 +947,11 @@ function painelN1(c, a, recarregar) {
         <button class="btn btn-primario" id="b-transferir">Transferir</button></div>` : ''}` + html;
   }
   lat.insertAdjacentHTML('beforeend', html);
-  if ($('#t-para')) api('atendentesN1', S.token).then(lista => {
+  const selectAtendente = $('#t-para'), navAtendente = S.nav;
+  if (selectAtendente) api('atendentesN1', S.token).then(lista => {
+    if (navAtendente !== S.nav || !selectAtendente.isConnected) return;
     const outros = lista.filter(x => x.login !== S.usuario.login);
-    $('#t-para').innerHTML = outros.length ? '<option value="">Escolha…</option>' + outros.map(x => `<option value="${esc(x.login)}">${esc(x.nome)}${x.perfil === 'Admin' ? ' (Admin)' : ''}</option>`).join('')
+    selectAtendente.innerHTML = outros.length ? '<option value="">Escolha…</option>' + outros.map(x => `<option value="${esc(x.login)}">${esc(x.nome)}${x.perfil === 'Admin' ? ' (Admin)' : ''}</option>`).join('')
       : '<option value="">Ninguém mais no N1</option>';
   }).catch(() => { });
   $$('[data-editor-acao]', lat).forEach(painel => {
@@ -1178,13 +1183,14 @@ function cancelarGravacao() {
 
 async function gravarAudio() {
   const ch = S.chat;
-  if (!ch || S.gravacao) return;
+  if (!ch || S.gravacao || ch.pedindoMicrofone) return;
+  ch.pedindoMicrofone = true;
   let stream;
   try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
   catch (e) {
     aviso(window.isSecureContext ? 'Não foi possível usar o microfone. Verifique a permissão do navegador.' : 'Gravar áudio só funciona com o SAC aberto em HTTPS.', 'erro');
     return;
-  }
+  } finally { ch.pedindoMicrofone = false; }
   if (S.chat !== ch) { stream.getTracks().forEach(t => t.stop()); return; }
   const tipo = ['audio/webm;codecs=opus', 'audio/ogg;codecs=opus', 'audio/mp4'].find(t => MediaRecorder.isTypeSupported(t)) || '';
   const rec = new MediaRecorder(stream, tipo ? { mimeType: tipo } : undefined);
@@ -1316,7 +1322,7 @@ function desenharRodape() {
   ta.oninput = () => { crescer(); ch.digitandoAte = Date.now() + 4000; S.rascunhos[ch.id + ':' + ch.canal] = ta.value; };
   ta.onkeydown = e => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); enviarMensagemChat(); } };
   $('#chat-env').onclick = enviarMensagemChat;
-  if ($('#chat-mic')) $('#chat-mic').onclick = () => { guardarRascunho(); gravarAudio(); };
+  if ($('#chat-mic')) $('#chat-mic').onclick = () => { guardarRascunho(); return gravarAudio(); };
   if ($('#b-cancelar-resposta')) $('#b-cancelar-resposta').onclick = () => { guardarRascunho(); ch.respondendo = null; desenharRodape(); $('#chat-txt').focus(); };
   if ($('#chat-arq')) $('#chat-arq').onchange = async e => {
     const arquivos = Array.from(e.target.files);
@@ -1324,6 +1330,7 @@ function desenharRodape() {
     $('#digitando').textContent = 'Enviando arquivo…';
     try { await enviarArquivos(ch.id, arquivos, ch.canal === 'equipe'); } catch (err) { return; }
     e.target.value = '';
+    if (S.chat !== ch) return;
     $('#digitando').textContent = '';
     agendarChat(0);
   };
@@ -1428,7 +1435,11 @@ function desenharPresenca(o) {
 
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) return;
-  if (S.tituloNovas) { S.tituloNovas = 0; topo(); }
+  if (S.tituloNovas) {
+    S.tituloNovas = 0;
+    const u = S.usuario;
+    document.title = u ? 'SAC · ' + (u.tipo === 'cliente' ? u.projeto : 'Equipe ' + S.publico.nome) : 'SAC';
+  }
   if (S.chat) { api('chatMarcarLido', S.token, S.chat.id, S.chat.canal).catch(() => { }); agendarChat(0); }
 });
 
@@ -1665,7 +1676,7 @@ async function telaProjetos(acessos) {
   try {
     [lista, pastaGeral, gruposVistos, clientesLldap] = await Promise.all([api('listarProjetos', S.token), api('obterPastaGeralProjetos', S.token),
       sso() ? api('gruposProjetoLldap', S.token) : [], sso() ? api('listarClientesLldap', S.token) : []]);
-  } catch (e) { return; }
+  } catch (e) { if (nav === S.nav && e.message !== 'SESSAO_EXPIRADA') app.innerHTML = `<div class="vazio">${esc(e.message)}</div>`; return; }
   if (nav !== S.nav) return;
   // Clientes (grupo Clientes do LLDAP) de um projeto
   const clientesDe = id => clientesLldap.filter(c => (c.projetoIds || []).includes(String(id)));
@@ -1796,7 +1807,8 @@ async function telaEquipeAdmin(acessos) {
   const nav = novaTela();
   app.innerHTML = '<div class="carregando">Carregando equipe…</div>';
   let lista;
-  try { lista = await api('listarEquipe', S.token); } catch (e) { return; }
+  try { lista = await api('listarEquipe', S.token); }
+  catch (e) { if (nav === S.nav && e.message !== 'SESSAO_EXPIRADA') app.innerHTML = `<div class="vazio">${esc(e.message)}</div>`; return; }
   if (nav !== S.nav) return;
   if (sso()) return equipeLldap(lista);
   const opcoes = sel => ['Admin', 'N1'].concat(S.base.setores).map(p => `<option ${p === sel ? 'selected' : ''}>${esc(p)}</option>`).join('');
@@ -1888,7 +1900,8 @@ async function telaConfig(aba) {
   const nav = novaTela();
   app.innerHTML = '<div class="carregando">Carregando configurações…</div>';
   let c;
-  try { c = await api('configuracoes', S.token); } catch (e) { return; }
+  try { c = await api('configuracoes', S.token); }
+  catch (e) { if (nav === S.nav && e.message !== 'SESSAO_EXPIRADA') app.innerHTML = `<div class="vazio">${esc(e.message)}</div>`; return; }
   if (nav !== S.nav) return;
   const nomes = { geral: 'Geral', automaticas: 'Horário e mensagens', categorias: 'Categorias', perfis: 'Perfis', modulos: 'Módulos', manuais: 'Manuais', feriados: 'Feriados', situacao: 'Situação do sistema' };
   app.innerHTML = `
@@ -2327,7 +2340,11 @@ async function telaRelatorios() {
   $('#b-csv').onclick = async e => {
     const linhas = await acao(e.target, () => api('exportarChamados', S.token, { de: $('#r-de').value, ate: $('#r-ate').value }));
     if (!linhas) return;
-    const cel = v => /[;"\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
+    const cel = v => {
+      v = String(v === null || v === undefined ? '' : v);
+      if (/^[=+@\-\t\r]/.test(v)) v = "'" + v;
+      return /[;"\r\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
+    };
     const csv = '\ufeff' + linhas.map(l => l.map(cel).join(';')).join('\r\n');
     const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
     const a = document.createElement('a');

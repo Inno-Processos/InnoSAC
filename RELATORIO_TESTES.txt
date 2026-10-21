@@ -1,0 +1,116 @@
+Relatório de revisão e testes do SAC
+Data: 20/10/2026
+
+Resultado: testes automatizados aprovados após as correções abaixo.
+
+Verificações executadas
+
+- npm test: 10 arquivos de testes aprovados, zero falhas.
+- Validação de sintaxe: 27 arquivos JavaScript/Apps Script aprovados,
+  incluindo aplicação, scripts e testes.
+- Novo teste tests/botoes.test.js: 108 famílias de controles exercitadas
+  e 198 chamadas às regras reais do backend, usando dados temporários.
+- Todos os botões com ID estático identificados em app.js foram acionados
+  no simulador. Os controles renderizados foram verificados quanto ao
+  vínculo com uma ação de clique ou envio de formulário.
+- Verificação de correspondência entre chamadas da interface e funções
+  públicas disponíveis na API.
+- Testes HTTP com processos reais de backend/frontend e autenticação
+  Authelia simulada em servidor local.
+- git diff --check: sem erros de espaço em branco; apenas avisos do Git
+  sobre conversão de LF para CRLF no Windows.
+
+"Família" agrupa controles repetidos do mesmo tipo: por exemplo, Editar
+em várias linhas de projetos. O número não representa cada instância
+de botão em todos os cadastros possíveis nem cobertura de 100% do código.
+
+Fluxos exercitados
+
+- Login, senha incorreta, mostrar/ocultar senha, recuperação, troca
+  obrigatória, cancelamento da troca, logout e recuperação de sessão.
+- Menu do Admin, N1, setor e cliente; permissões e restauração de tela.
+- Projetos: criação, edição, sincronização, redefinição de senha,
+  cópia de acesso e inclusão/remoção de módulos.
+- Equipe: criação, edição, redefinição de senha e criação de perfil
+  em formulário aninhado.
+- Configurações gerais, horário, mensagens automáticas, simulador,
+  categorias, perfis, módulos, manuais, feriados e situação do sistema.
+- Cadastro do cliente, nome, e-mail, código de confirmação e adiamento.
+- Chamados pelo cliente e por telefone; filtros, detalhes, assumir,
+  triagem, mudança de status, encaminhamento, devolução e transferência.
+- Fechamento, confirmação de correção, reajuste, reabertura e avaliação.
+- Chat público/interno, envio, reações, resposta citada e rascunhos.
+- Anexos: seleção, retirada, envio, download, visualização de imagem,
+  reprodução de áudio e controles de gravação simulados.
+- Relatórios, geração, exportação CSV, impressão simulada e pesquisas.
+- Exclusão de chamado: confirmação, cancelamento, falha, retorno à fila,
+  bloqueio para outros perfis e remoção dos registros associados.
+- Landing page nos estados anônimo, sem acesso e indisponível;
+  preservação do destino no login e leitura dos parâmetros da URL.
+
+Problemas corrigidos e cobertos por regressão
+
+1. Voltar à aba com mensagens novas interrompia o chat, pois reconstruía
+   o topo e descartava o estado da conversa. Agora atualiza apenas o título.
+   O evento também funciona depois de sair da conta.
+
+2. Abrir outra tela pelo menu do cliente podia deixar o chat anterior
+   ativo. A navegação agora encerra sua atualização e preserva o rascunho.
+
+3. Falhas ao carregar cadastro, projetos, equipe, configurações e abertura
+   por telefone deixavam a tela em "Carregando...". Agora exibem o erro.
+
+4. Uma lista atrasada de atendentes podia escrever no formulário de um
+   chamado aberto depois. A resposta agora verifica a tela e o elemento
+   de origem antes de atualizar as opções.
+
+5. Concluir um upload após sair da conversa podia acessar controles já
+   removidos. A conclusão agora confere se a conversa continua aberta.
+
+6. Cliques repetidos no microfone enquanto a permissão estava pendente
+   podiam iniciar solicitações simultâneas. Agora há apenas uma pendente.
+
+7. O botão de senha mudava para "Ocultar", mas conservava o rótulo
+   acessível "Mostrar senha". O rótulo agora acompanha o estado.
+
+8. A autorização de atualização/leitura do chat ficava em cache por
+   60 segundos. Após transferência ou exclusão, um acesso antigo ainda
+   podia ser aceito. Agora a permissão é conferida em cada requisição.
+
+9. Datas inexistentes, como 31/02/2026, eram convertidas automaticamente
+   para outro dia ao salvar feriados. Agora são rejeitadas e a lista
+   anterior é preservada.
+
+10. Dois e-mails locais para o mesmo destinatário no mesmo milissegundo
+    podiam usar o mesmo arquivo e sobrescrever um ao outro. Os nomes
+    agora incluem um identificador único.
+
+11. Nomes como "__proto__" ou "constructor" podiam quebrar agrupamentos
+    dos relatórios ou ser descartados na limpeza de módulos/categorias.
+    Esses índices agora usam dicionários sem propriedades herdadas.
+
+12. A exportação CSV podia interpretar valores iniciados por símbolos
+    de fórmula como fórmulas ao abrir em planilhas. Agora os protege como
+    texto e também trata aspas, separadores e retornos de carro.
+
+Como repetir
+
+Na raiz do projeto, execute: npm test
+Somente a nova varredura funcional: node --test tests/botoes.test.js
+
+Limites da validação
+
+- Não havia navegador conectado disponível. Os cliques foram executados
+  nos manipuladores da interface em DOM simulado (linkedom), com regras
+  reais. Não houve inspeção visual, responsiva ou teste manual em Chrome,
+  Edge ou celular. Visibilidade e facilidade de clique reais não estão
+  certificadas por esse teste.
+- Microfone, reprodução de áudio, clipboard, impressão, URLs de arquivos
+  e downloads usam APIs simuladas. Hardware, permissões do navegador e
+  conteúdo visual dos anexos precisam de conferência no navegador real.
+- SMTP e Authelia/LLDAP de produção não foram contatados. O teste cobre
+  geração de e-mails, armazenamento local e autenticação simulada.
+- Não foi feito build ou execução em Docker: a CLI não estava disponível.
+- A revisão e os testes não são garantia de ausência de todos os defeitos.
+  Não representam teste de carga nem validação completa da infraestrutura.
+- As correções estão nos arquivos locais; não foi feito deploy.

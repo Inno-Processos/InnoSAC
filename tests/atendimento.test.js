@@ -106,6 +106,7 @@ try {
   const possiveis = run('atendentesN1', 'ana').map(a => a.login);
   assert(possiveis.includes(ana) && possiveis.includes(bruno) && !possiveis.includes(sofia), 'Only N1 and Admin can receive a transfer.');
   enviados = [];
+  run('chatAtualizar', 'ana', id, 0, '');
   const r = run('transferirChamado', 'ana', id, bruno, 'Cliente prefere falar à tarde.');
   assert.deepEqual(r, { saiu: true, para: 'Bruno' });
   assert.equal(ve('ana', id), false);
@@ -114,6 +115,8 @@ try {
   assert(enviados.some(m => m.to === 'bruno@innomaker.com.br' && /transferido para você/.test(m.subject)));
   assert(run('detalheChamado', 'bruno', id).historico.some(h => /Ana transferiu o atendimento para Bruno\. Nota: Cliente prefere falar à tarde\./.test(h.Texto)));
   assert.throws(() => run('enviarChat', 'ana', id, 'cliente', 'Oi'), /não tem acesso/);
+  assert.throws(() => run('chatAtualizar', 'ana', id, 0, ''), /não tem acesso/);
+  assert.throws(() => run('chatMarcarLido', 'ana', id, 'cliente'), /não tem acesso/);
   run('alterarStatus', 'bruno', id, 'Aguardando cliente', 'Pode testar de novo?');
 
   // Admin can take over; then Bruno no longer sees it
@@ -145,10 +148,12 @@ try {
   svc.PropertiesService.getScriptProperties().setProperty('FILA_AVISOS_NOVOS', JSON.stringify([{ id }, { id: tel }]));
   svc._salvar();
   const pasta = run('obterChamado_', id).PastaId;
+  run('chatAtualizar', 'admin', id, 0, '');
   assert(pasta, 'The deleted ticket has attachments in its own folder.');
   run('atualizar_', 'Chamados', run('obterChamado_', id)._linha, { Status: 'Fechado' });
   assert.equal(run('excluirChamado', 'admin', id), 'Chamado excluído.');
   assert.throws(() => run('detalheChamado', 'admin', id), /não encontrado/);
+  assert.throws(() => run('chatAtualizar', 'admin', id, 0, ''), /não encontrado/);
   assert.throws(() => run('excluirChamado', 'admin', id), /não encontrado/);
   assert(!fila('admin').includes(id));
   assert(!run('meusChamados', 'cliente').some(c => c.Id === id));
